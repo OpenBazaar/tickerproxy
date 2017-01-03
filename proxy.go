@@ -27,12 +27,12 @@ type Proxy struct {
 }
 
 // New creates a new `Proxy` with the given credentials
-func New(pubkey string, privkey string) *Proxy {
+func New(speed time.Duration, pubkey string, privkey string) *Proxy {
 	return &Proxy{
 		url:        tickerEndpoint + "?public_key=" + pubkey,
 		publicKey:  pubkey,
 		privateKey: privkey,
-		ticker:     time.NewTicker(10 * time.Second),
+		ticker:     time.NewTicker(speed),
 	}
 }
 
