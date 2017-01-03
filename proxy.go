@@ -43,7 +43,7 @@ func (p *Proxy) Fetch() error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("X-signature", p.currentSignature())
+	req.Header.Set("X-Signature", p.currentSignature())
 
 	// Send the request
 	resp, err := httpClient.Get(p.url)
