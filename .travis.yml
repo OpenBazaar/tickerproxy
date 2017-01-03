@@ -4,3 +4,13 @@ go:
 - tip
 script:
 - go test -v *.go
+- go build -o tickerproxyd ./bin/*.go
+deploy:
+  provider: releases
+  api_key:
+    secure: iky7k3WTXwesvEfoMzjBhLPezb3MbRk6UF2KTnpEJM757uQppbNRFimLzAlGzj1zuQEn3RpSON8foN0oATH+07cWXAgwDUB5j1WXlJW6Sf2iQoTLXKOv9YKT0X9Rz7gxogKSELxKgJFanyyPTW2kAGJhtjAtmhi2MLcnSU9yVBQ6IQmWjAtQLSWm51bm191QPj9Dc434fGZDtB6obg+Ncw7a+Ri+872rh7EWvEtLdi5A/R2t4DgLBgRpLqo6t12W/isMyKt6pmZgqzg+1vJZtxmtl/keg6yb1hwxmlZiKFn3AXDTD7Hhl6pKYdmv+tp9N/AdTlYXBHoQ+fVEmVf+dl08E20zRn88QDGBkT0lbVrQlx68DqO9F/90mELhWfMjOfycoCykJHh+U5QYuXGSEMMOTrXQ4v3AQ02VYwrvhLhF/VfOQsOj4T8FfLjOhC2uai60EJs8UEPAZ2q3V3o8OTZ8FXR56K1dzz+dews4iwLp8H1Mtst7MGSU7/lTi4ciwL3FRmKFU8QJojbn9fEk1dI3jQg6aCQ33PY3nVZc+BBaK3e0HobMTJd0rZGD5Qt5UXTUHRk6Ou9Kal7cnnFLwhfLRi7MlmpoR15TVzGBlts3grxdfYmD5crjLEeQqgkiTpgYYkmILbGJ3EYGX/me9TngJujGbNx3AWsnvXuOPQs=
+  file: tickerproxyd
+  skip_cleanup: true
+  on:
+    tags: true
+    repo: OpenBazaar/tickerproxy
