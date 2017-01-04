@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"os"
 	"time"
-
+        "fmt"
 	"strconv"
 
 	"github.com/OpenBazaar/tickerproxy"
@@ -28,6 +28,10 @@ func main() {
 	// Create and start a `tickerproxy.Proxy`
 	proxy := tickerproxy.New(tickerDuration, pubkey, privkey)
 	go proxy.Start()
+
+        if pubkey != "" {
+            fmt.Println("Started for key: " + pubkey)
+        }
 
 	// Listen for http requests
 	http.ListenAndServe(":"+port, proxy)
