@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -99,9 +100,13 @@ func (p *Proxy) Fetch() error {
 		return err
 	}
 
-	// Update cache
-	p.lastResponseBody = body
-	p.lastResponseHeaders = resp.Header
+	// Update cache on success, or notify upon failure
+	if resp.StatusCode == 200 {
+		p.lastResponseBody = body
+		p.lastResponseHeaders = resp.Header
+	} else {
+		job.EventErr("request.status", errors.New(string(body)))
+	}
 
 	job.Complete(health.Success)
 
