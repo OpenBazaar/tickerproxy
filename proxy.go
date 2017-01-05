@@ -8,6 +8,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"strconv"
+
+	"github.com/gocraft/health"
 )
 
 // tickerEndpoint is the default API endpoint to proxy
@@ -16,31 +20,64 @@ const tickerEndpoint = "https://api.bitcoinaverage.com/ticker/global/all"
 // httpClient is a an http client with a read timeout set
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
+// kvs is a helper type for logging
+type kvs health.Kvs
+
 // Proxy gets data from the API endpoint and caches it
 type Proxy struct {
-	url                 string
-	publicKey           string
-	privateKey          string
+	// Settings
+	url        string
+	publicKey  string
+	privateKey string
+	speed      int
+
+	// Proxied data
 	lastResponseBody    []byte
 	lastResponseHeaders http.Header
-	ticker              *time.Ticker
+
+	// Mechanics
+	ticker *time.Ticker
+	stream *health.Stream
+
+	stopCh chan (struct{})
+	doneCh chan (struct{})
 }
 
-// New creates a new `Proxy` with the given credentials
-func New(speed time.Duration, pubkey string, privkey string) *Proxy {
+// New creates a new `Proxy` with the given credentials and default values
+func New(speed int, pubkey string, privkey string) *Proxy {
 	return &Proxy{
+		// Settings
 		url:        tickerEndpoint + "?public_key=" + pubkey,
 		publicKey:  pubkey,
 		privateKey: privkey,
-		ticker:     time.NewTicker(speed),
+		speed:      speed,
+
+		// Initial data
+		lastResponseBody: []byte("{}"),
+
+		// Mechanics
+		ticker: time.NewTicker(time.Duration(speed) * time.Second),
+		stream: health.NewStream(),
+
+		stopCh: make(chan (struct{})),
+		doneCh: make(chan (struct{})),
 	}
+}
+
+// SetStream sets the health stream to write to
+func (p *Proxy) SetStream(stream *health.Stream) {
+	p.stream = stream
 }
 
 // Fetch gets the latest data from the API server
 func (p *Proxy) Fetch() error {
+	job := p.stream.NewJob("proxy.fetch")
+
 	// Create the http request
 	req, err := http.NewRequest("GET", p.url, nil)
 	if err != nil {
+		job.EventErr("request.new", err)
+		job.Complete(health.Error)
 		return err
 	}
 	req.Header.Set("X-Signature", p.currentSignature())
@@ -48,6 +85,8 @@ func (p *Proxy) Fetch() error {
 	// Send the request
 	resp, err := httpClient.Get(p.url)
 	if err != nil {
+		job.EventErr("request.make", err)
+		job.Complete(health.Error)
 		return err
 	}
 	defer resp.Body.Close()
@@ -55,6 +94,8 @@ func (p *Proxy) Fetch() error {
 	// Read the response body
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		job.EventErr("request.read", err)
+		job.Complete(health.Error)
 		return err
 	}
 
@@ -62,20 +103,32 @@ func (p *Proxy) Fetch() error {
 	p.lastResponseBody = body
 	p.lastResponseHeaders = resp.Header
 
+	job.Complete(health.Success)
+
 	return nil
 }
 
 // Start requests the latest data and begins polling every tick
 func (p *Proxy) Start() {
+	p.stream.EventKv("proxy.starting", kvs{"public_key": p.publicKey, "speed": strconv.Itoa(p.speed)})
+
 	p.Fetch()
-	for range p.ticker.C {
-		p.Fetch()
+	for {
+		select {
+		case <-p.stopCh:
+			close(p.doneCh)
+			return
+		case <-p.ticker.C:
+			p.Fetch()
+		}
 	}
 }
 
 // Stop makes the `Proxy` stop fetching new data
 func (p *Proxy) Stop() {
-	p.ticker.Stop()
+	p.stream.Event("proxy.stopping")
+	close(p.stopCh)
+	<-p.doneCh
 }
 
 // String returns the latest response from the API as a string
@@ -86,6 +139,8 @@ func (p *Proxy) String() string {
 // ServeHTTP is an `http.Handler` that just returns the lastest response from
 // the upstream server
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	job := p.stream.NewJob("proxy.serve")
+
 	// Add headers
 	for key, vals := range p.lastResponseHeaders {
 		for _, val := range vals {
@@ -97,8 +152,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Write body
 	_, err := w.Write(p.lastResponseBody)
 	if err != nil {
-		fmt.Println(err)
+		job.EventErr("write", err)
+		job.Complete(health.Error)
 	}
+
+	job.Complete(health.Success)
 }
 
 // currentSignature generates a bitcoinaverage.com API signature
