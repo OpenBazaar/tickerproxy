@@ -16,6 +16,7 @@ func main() {
 	speed := getEnvString("TICKER_PROXY_SPEED", "10")
 	pubkey := getEnvString("TICKER_PROXY_PUBKEY", "")
 	privkey := getEnvString("TICKER_PROXY_PRIVKEY", "")
+	outfile := getEnvString("TICKER_PROXY_OUTFILE", "ticker_data.json")
 	bugsnagAPIKey := getEnvString("TICKER_BUGSNAG_APIKEY", "")
 
 	// Create instrumentation stream
@@ -28,7 +29,7 @@ func main() {
 	}
 
 	// Create and start a `tickerproxy.Proxy`
-	proxy := tickerproxy.New(speedInt, pubkey, privkey)
+	proxy := tickerproxy.New(speedInt, pubkey, privkey, outfile)
 	proxy.SetStream(stream)
 	go proxy.Start()
 

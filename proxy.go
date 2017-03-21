@@ -28,6 +28,7 @@ type kvs health.Kvs
 type Proxy struct {
 	// Settings
 	url        string
+	outfile    string
 	publicKey  string
 	privateKey string
 	speed      int
@@ -45,10 +46,11 @@ type Proxy struct {
 }
 
 // New creates a new `Proxy` with the given credentials and default values
-func New(speed int, pubkey string, privkey string) *Proxy {
+func New(speed int, pubkey string, privkey string, outfile string) *Proxy {
 	return &Proxy{
 		// Settings
 		url:        tickerEndpoint + "?public_key=" + pubkey,
+		outfile:    outfile,
 		publicKey:  pubkey,
 		privateKey: privkey,
 		speed:      speed,
@@ -104,6 +106,17 @@ func (p *Proxy) Fetch() error {
 	if resp.StatusCode == 200 {
 		p.lastResponseBody = body
 		p.lastResponseHeaders = resp.Header
+
+		// Cache to disk
+		if p.outfile != "" {
+			err := ioutil.WriteFile(p.outfile, body, 0644)
+			if err != nil {
+				job.EventErr("request.write_to_outfile", err)
+				job.Complete(health.Error)
+				return err
+			}
+			job.EventKv("request.write_to_outfile", kvs{"file": p.outfile})
+		}
 	} else {
 		job.EventErr("request.status", errors.New(string(body)))
 	}
