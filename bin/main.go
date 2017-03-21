@@ -13,7 +13,7 @@ import (
 func main() {
 	// Get configuration
 	port := getEnvString("TICKER_PROXY_PORT", "8080")
-	speed := getEnvString("TICKER_PROXY_SPEED", "10")
+	speed := getEnvString("TICKER_PROXY_SPEED", "900")
 	pubkey := getEnvString("TICKER_PROXY_PUBKEY", "")
 	privkey := getEnvString("TICKER_PROXY_PRIVKEY", "")
 	outfile := getEnvString("TICKER_PROXY_OUTFILE", "ticker_data.json")
