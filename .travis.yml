@@ -1,7 +1,6 @@
 language: go
 go:
-- 1.7.1
-- tip
+- 1.9
 script:
 - go test -v *.go
 - go build -o tickerproxyd ./bin/*.go
