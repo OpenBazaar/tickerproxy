@@ -13,7 +13,16 @@ import (
 	"github.com/jarcoal/httpmock"
 )
 
-const testResponseBody = `{"BTC": {"low": 0, "high": 1200.00}}`
+// const testResponseBody = `{"BTC": {"low": 0, "high": 1200.00}}`
+const testResponseBody = `{
+  "BTCUSD": {
+    "ask": "22324.79",
+    "bid": "22299.15",
+		"last": "22319.49"
+	}
+}`
+
+const testExpectedProxiedResponse = `{"USD":{"ask":22324.79,"bid":22299.15,"last":22319.49}}`
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -44,7 +53,7 @@ func TestProxy(t *testing.T) {
 	}
 
 	// Make sure we get the correct response
-	if proxy.String() != testResponseBody {
+	if proxy.String() != testExpectedProxiedResponse {
 		t.Fatal("Incorrect response body.")
 	}
 
@@ -70,7 +79,7 @@ func TestProxy(t *testing.T) {
 		t.Error(err)
 	}
 
-	if string(responseBody) != testResponseBody {
+	if string(responseBody) != testExpectedProxiedResponse {
 		t.Fatal("Incorrect response body.")
 	}
 
