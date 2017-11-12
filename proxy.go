@@ -27,9 +27,9 @@ var httpClient = &http.Client{Timeout: 10 * time.Second}
 type kvs health.Kvs
 
 type exchangeRate struct {
-	Ask  float64 `json:"ask"`
-	Bid  float64 `json:"bid"`
-	Last float64 `json:"last"`
+	Ask  json.Number `json:"ask"`
+	Bid  json.Number `json:"bid"`
+	Last json.Number `json:"last"`
 }
 
 type exchangeRates map[string]exchangeRate
