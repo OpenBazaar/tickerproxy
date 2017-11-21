@@ -1,6 +1,7 @@
 package tickerproxy
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,6 +15,10 @@ import (
 
 	"strconv"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gocraft/health"
 )
 
@@ -43,6 +48,10 @@ type Proxy struct {
 	privateKey string
 	speed      int
 
+	// S3
+	s3Client *s3.S3
+	s3Bucket string
+
 	// Proxied data
 	lastResponseBody    []byte
 	lastResponseHeaders http.Header
@@ -56,7 +65,14 @@ type Proxy struct {
 }
 
 // New creates a new `Proxy` with the given credentials and default values
-func New(speed int, pubkey string, privkey string, outfile string) *Proxy {
+func New(speed int, pubkey string, privkey string, outfile string, s3Region string, s3Bucket string) (*Proxy, error) {
+	creds := credentials.NewEnvCredentials()
+	_, err := creds.Get()
+	if err != nil {
+		return nil, err
+	}
+	s3CFG := aws.NewConfig().WithRegion(s3Region).WithCredentials(creds)
+
 	return &Proxy{
 		// Settings
 		url:        tickerEndpoint,
@@ -64,6 +80,9 @@ func New(speed int, pubkey string, privkey string, outfile string) *Proxy {
 		publicKey:  pubkey,
 		privateKey: privkey,
 		speed:      speed,
+
+		s3Client: s3.New(session.New(), s3CFG),
+		s3Bucket: s3Bucket,
 
 		// Initial data
 		lastResponseBody: []byte("{}"),
@@ -74,7 +93,7 @@ func New(speed int, pubkey string, privkey string, outfile string) *Proxy {
 
 		stopCh: make(chan (struct{})),
 		doneCh: make(chan (struct{})),
-	}
+	}, nil
 }
 
 // SetStream sets the health stream to write to
@@ -140,6 +159,15 @@ func (p *Proxy) Fetch() error {
 		}
 		job.EventKv("request.write_to_outfile", kvs{"file": p.outfile})
 	}
+
+	// Upload to AWS
+	err = sendToS3(p.s3Client, p.s3Bucket, p.lastResponseBody)
+	if err != nil {
+		job.EventErr("aws.write", err)
+		job.Complete(health.Error)
+		return err
+	}
+	job.Event("aws.write")
 
 	job.Complete(health.Success)
 
@@ -230,4 +258,19 @@ func formatResponse(body []byte) ([]byte, error) {
 	}
 
 	return outgoingBytes, nil
+}
+
+func sendToS3(s3Client *s3.S3, bucket string, data []byte) error {
+	_, err := s3Client.PutObject(&s3.PutObjectInput{
+		Key:           aws.String("api"),
+		Bucket:        aws.String(bucket),
+		Body:          bytes.NewReader(data),
+		ContentLength: aws.Int64(int64(len(data))),
+		ContentType:   aws.String("application/json"),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

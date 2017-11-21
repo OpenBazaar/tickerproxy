@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,6 +19,8 @@ func main() {
 	privkey := getEnvString("TICKER_PROXY_PRIVKEY", "")
 	outfile := getEnvString("TICKER_PROXY_OUTFILE", "ticker_data.json")
 	bugsnagAPIKey := getEnvString("TICKER_BUGSNAG_APIKEY", "")
+	awsRegion := getEnvString("AWS_REGION", "us-east-1")
+	s3Bucket := getEnvString("AWS_S3_BUCKET", "openbazaar-ticker")
 
 	// Create instrumentation stream
 	stream := newHealthStream(bugsnagAPIKey)
@@ -29,7 +32,11 @@ func main() {
 	}
 
 	// Create and start a `tickerproxy.Proxy`
-	proxy := tickerproxy.New(speedInt, pubkey, privkey, outfile)
+	proxy, err := tickerproxy.New(speedInt, pubkey, privkey, outfile, awsRegion, s3Bucket)
+	if err != nil {
+		fmt.Printf("ticker failed: %s", err)
+	}
+
 	proxy.SetStream(stream)
 	go proxy.Start()
 
