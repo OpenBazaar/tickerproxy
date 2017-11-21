@@ -24,6 +24,8 @@ const testResponseBody = `{
 
 const testExpectedProxiedResponse = `{"USD":{"ask":22324.79,"bid":22299.15,"last":22319.49}}`
 
+// const TestS3Region = "test"
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -43,7 +45,11 @@ func TestProxy(t *testing.T) {
 	}
 
 	// Create a proxy
-	proxy := New(1, "pubkey", "privkey", outfile)
+	proxy, err := New(1, "pubkey", "privkey", outfile, TestS3Region, TestS3Region)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	proxy.SetStream(newTestStream())
 
 	// Fetch data

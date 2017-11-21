@@ -25,6 +25,9 @@ import (
 // tickerEndpoint is the default API endpoint to proxy
 const tickerEndpoint = "https://apiv2.bitcoinaverage.com/indices/global/ticker/all?crypto=BTC"
 
+// TestS3Region is the region to use in test mode
+const TestS3Region = "test"
+
 // httpClient is a an http client with a read timeout set
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
@@ -66,12 +69,18 @@ type Proxy struct {
 
 // New creates a new `Proxy` with the given credentials and default values
 func New(speed int, pubkey string, privkey string, outfile string, s3Region string, s3Bucket string) (*Proxy, error) {
-	creds := credentials.NewEnvCredentials()
-	_, err := creds.Get()
-	if err != nil {
-		return nil, err
+	var s3Client *s3.S3
+
+	// Configure S3 client unless we're in test mode
+	if s3Region != TestS3Region {
+		creds := credentials.NewEnvCredentials()
+		_, err := creds.Get()
+		if err != nil {
+			return nil, err
+		}
+		s3CFG := aws.NewConfig().WithRegion(s3Region).WithCredentials(creds)
+		s3Client = s3.New(session.New(), s3CFG)
 	}
-	s3CFG := aws.NewConfig().WithRegion(s3Region).WithCredentials(creds)
 
 	return &Proxy{
 		// Settings
@@ -81,7 +90,7 @@ func New(speed int, pubkey string, privkey string, outfile string, s3Region stri
 		privateKey: privkey,
 		speed:      speed,
 
-		s3Client: s3.New(session.New(), s3CFG),
+		s3Client: s3Client,
 		s3Bucket: s3Bucket,
 
 		// Initial data
@@ -161,13 +170,15 @@ func (p *Proxy) Fetch() error {
 	}
 
 	// Upload to AWS
-	err = sendToS3(p.s3Client, p.s3Bucket, p.lastResponseBody)
-	if err != nil {
-		job.EventErr("aws.write", err)
-		job.Complete(health.Error)
-		return err
+	if p.s3Client != nil {
+		err = sendToS3(p.s3Client, p.s3Bucket, p.lastResponseBody)
+		if err != nil {
+			job.EventErr("aws.write", err)
+			job.Complete(health.Error)
+			return err
+		}
+		job.Event("aws.write")
 	}
-	job.Event("aws.write")
 
 	job.Complete(health.Success)
 
