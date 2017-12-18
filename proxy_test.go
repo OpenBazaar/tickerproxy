@@ -22,7 +22,7 @@ const testResponseBody = `{
 	}
 }`
 
-const testExpectedProxiedResponse = `{"USD":{"ask":22324.79,"bid":22299.15,"last":22319.49}}`
+const testExpectedProxiedResponse = `{"BTC":{"ask":1,"bid":1,"last":1},"USD":{"ask":22324.79,"bid":22299.15,"last":22319.49}}`
 
 // const TestS3Region = "test"
 
