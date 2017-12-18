@@ -31,6 +31,15 @@ const TestS3Region = "test"
 // httpClient is a an http client with a read timeout set
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
+// btcInvariantRate contains a dummy rate for BTC -> BTC.
+// It's injected into the response to fix a bug in the client
+// which relies on this data
+var btcInvariantRate = exchangeRate{
+	Ask:  "1",
+	Bid:  "1",
+	Last: "1",
+}
+
 // kvs is a helper type for logging
 type kvs health.Kvs
 
@@ -252,17 +261,21 @@ func createSignature(publicKey string, privateKey string) string {
 }
 
 func formatResponse(body []byte) ([]byte, error) {
+	// Read API response into memory
 	incoming := make(exchangeRates)
 	err := json.Unmarshal(body, &incoming)
 	if err != nil {
 		return nil, err
 	}
 
-	outgoing := make(exchangeRates, len(incoming))
+	// Prepare a new response, add BTC invariant, and add pairs
+	outgoing := make(exchangeRates, len(incoming)+1)
+	outgoing["BTC"] = btcInvariantRate
 	for k, v := range incoming {
 		outgoing[strings.TrimPrefix(k, "BTC")] = v
 	}
 
+	// Serialize the formatted response
 	outgoingBytes, err := json.Marshal(outgoing)
 	if err != nil {
 		return nil, err
