@@ -78,7 +78,7 @@ func New(speed int, pubkey string, privkey string, outfile string, s3Region stri
 		if err != nil {
 			return nil, err
 		}
-		s3CFG := aws.NewConfig().WithRegion(s3Region).WithCredentials(creds)
+		s3CFG := aws.NewConfig().WithRegion(s3Region).WithCredentials(creds).WithLogLevel(aws.LogDebug)
 		s3Client = s3.New(session.New(), s3CFG)
 	}
 
