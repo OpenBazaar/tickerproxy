@@ -22,26 +22,23 @@ import (
 	"github.com/gocraft/health"
 )
 
-// tickerEndpoint is the default API endpoint to proxy
-const tickerEndpoint = "https://apiv2.bitcoinaverage.com/indices/global/ticker/all?crypto=BTC"
+// kvs is a helper type for logging
+type kvs health.Kvs
 
 // TestS3Region is the region to use in test mode
 const TestS3Region = "test"
 
-// httpClient is a an http client with a read timeout set
-var httpClient = &http.Client{Timeout: 10 * time.Second}
-
-// btcInvariantRate contains a dummy rate for BTC -> BTC.
-// It's injected into the response to fix a bug in the client
-// which relies on this data
-var btcInvariantRate = exchangeRate{
-	Ask:  "1",
-	Bid:  "1",
-	Last: "1",
-}
-
-// kvs is a helper type for logging
-type kvs health.Kvs
+// Set package-level private vars
+var (
+	altcoins         = []string{"BCH", "ZEC", "LTC", "XMR", "ETH"}
+	tickerEndpoint   = "https://apiv2.bitcoinaverage.com/indices/global/ticker/all?crypto=BTC," + strings.Join(altcoins, ",")
+	httpClient       = &http.Client{Timeout: 10 * time.Second}
+	btcInvariantRate = exchangeRate{
+		Ask:  "1",
+		Bid:  "1",
+		Last: "1",
+	}
+)
 
 type exchangeRate struct {
 	Ask  json.Number `json:"ask"`
@@ -272,7 +269,41 @@ func formatResponse(body []byte) ([]byte, error) {
 	outgoing := make(exchangeRates, len(incoming)+1)
 	outgoing["BTC"] = btcInvariantRate
 	for k, v := range incoming {
-		outgoing[strings.TrimPrefix(k, "BTC")] = v
+		// Copy BTC<x> pairs to the outgoing data
+		if strings.HasPrefix(k, "BTC") {
+			outgoing[strings.TrimPrefix(k, "BTC")] = v
+			continue
+		}
+
+		// Crypto pairs need to be reversed into BTC-<x> pairs
+		for _, altcoinSymbol := range altcoins {
+			if k == altcoinSymbol+"BTC" {
+				ask, err := v.Ask.Float64()
+				if err != nil {
+					return nil, err
+				}
+				bid, err := v.Bid.Float64()
+				if err != nil {
+					return nil, err
+				}
+				last, err := v.Last.Float64()
+				if err != nil {
+					return nil, err
+				}
+
+				ask = 1.0 / ask
+				bid = 1.0 / bid
+				last = 1.0 / last
+
+				outgoing[altcoinSymbol] = exchangeRate{
+					Ask:  json.Number(strconv.FormatFloat(ask, 'G', -1, 32)),
+					Bid:  json.Number(strconv.FormatFloat(bid, 'G', -1, 32)),
+					Last: json.Number(strconv.FormatFloat(last, 'G', -1, 32)),
+				}
+				// outgoing[strings.TrimPrefix(k, "BTC")] = v
+				continue
+			}
+		}
 	}
 
 	// Serialize the formatted response
