@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/OpenBazaar/tickerproxy"
 	"github.com/gocraft/health"
@@ -13,7 +14,6 @@ import (
 
 func main() {
 	// Get configuration
-	port := getEnvString("TICKER_PROXY_PORT", "8080")
 	speed := getEnvString("TICKER_PROXY_SPEED", "900")
 	pubkey := getEnvString("TICKER_PROXY_PUBKEY", "")
 	privkey := getEnvString("TICKER_PROXY_PRIVKEY", "")
@@ -39,9 +39,14 @@ func main() {
 
 	proxy.SetStream(stream)
 	go proxy.Start()
+	stream.Event("started")
 
-	// Listen for http requests
-	http.ListenAndServe(":"+port, proxy)
+	// Wait for shutdown signal
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
+	<-c
+	stream.Event("shutdown")
+	proxy.Stop()
 }
 
 func getEnvString(key string, defaultVal string) string {

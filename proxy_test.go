@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -49,21 +48,19 @@ func TestProxy(t *testing.T) {
 	httpmock.RegisterResponder("GET", fiatEndpoint, httpmock.NewStringResponder(200, testFiatResponseBody))
 	httpmock.RegisterResponder("GET", cryptoEndpoint, httpmock.NewStringResponder(200, testCryptoResponseBody))
 
+	// Prepare outfile
 	outfile := fmt.Sprintf("/tmp/ticker_proxy_test_%d.json", rand.Int())
-
-	// Remove outfile
 	err := os.Remove(outfile)
 	if err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 
-	// Create a proxy
+	// Create a proxy with a test output stream
 	proxy, err := New(1, "pubkey", "privkey", outfile, TestS3Region, TestS3Region)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	proxy.SetStream(newTestStream())
+	proxy.SetStream(health.NewStream())
 
 	// Fetch data
 	err = proxy.Fetch()
@@ -84,27 +81,4 @@ func TestProxy(t *testing.T) {
 	if proxy.String() != string(savedBytes) {
 		t.Fatal("Incorrect response body.")
 	}
-
-	go proxy.Start()
-
-	// Try the HTTP handler
-	rr := httptest.NewRecorder()
-	proxy.ServeHTTP(rr, httptest.NewRequest("GET", "http://ticker.openbazaar.org/api", nil))
-	result := rr.Result()
-
-	// Check that the response body is correct
-	responseBody, err := ioutil.ReadAll(result.Body)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if string(responseBody) != testExpectedProxiedResponse {
-		t.Fatal("Incorrect response body.")
-	}
-
-	proxy.Stop()
-}
-
-func newTestStream() *health.Stream {
-	return health.NewStream()
 }
