@@ -13,18 +13,30 @@ import (
 	"github.com/jarcoal/httpmock"
 )
 
-// const testResponseBody = `{"BTC": {"low": 0, "high": 1200.00}}`
-const testResponseBody = `{
+const (
+	testFiatResponseBody = `{
   "BTCUSD": {
-    "ask": "22324.79",
-    "bid": "22299.15",
-		"last": "22319.49"
+    "ask": "1",
+    "bid": "2",
+		"last": "3"
 	}
 }`
 
-const testExpectedProxiedResponse = `{"BTC":{"ask":1,"bid":1,"last":1},"USD":{"ask":22324.79,"bid":22299.15,"last":22319.49}}`
+	testCryptoResponseBody = `{
+  "BCHBTC": {
+    "ask": "6",
+    "bid": "7",
+		"last": "8"
+	},
+  "ZECBTC": {
+    "ask": "60",
+    "bid": "70",
+		"last": "80"
+	}
+}`
 
-// const TestS3Region = "test"
+	testExpectedProxiedResponse = `{"BCH":{"ask":0.16666667,"bid":0.14285715,"last":0.125},"BTC":{"ask":1,"bid":1,"last":1},"USD":{"ask":1,"bid":2,"last":3},"ZEC":{"ask":0.016666668,"bid":0.014285714,"last":0.0125}}`
+)
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -34,7 +46,8 @@ func TestProxy(t *testing.T) {
 	// Create external http mocks
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
-	httpmock.RegisterResponder("GET", tickerEndpoint, httpmock.NewStringResponder(200, testResponseBody))
+	httpmock.RegisterResponder("GET", fiatEndpoint, httpmock.NewStringResponder(200, testFiatResponseBody))
+	httpmock.RegisterResponder("GET", cryptoEndpoint, httpmock.NewStringResponder(200, testCryptoResponseBody))
 
 	outfile := fmt.Sprintf("/tmp/ticker_proxy_test_%d.json", rand.Int())
 
