@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"strconv"
@@ -31,7 +32,8 @@ const TestS3Region = "test"
 // Set package-level private vars
 var (
 	altcoins         = []string{"BCH", "ZEC", "LTC", "XMR", "ETH"}
-	tickerEndpoint   = "https://apiv2.bitcoinaverage.com/indices/global/ticker/all?crypto=BTC," + strings.Join(altcoins, ",")
+	fiatEndpoint     = "https://apiv2.bitcoinaverage.com/indices/global/ticker/all?crypto=BTC"
+	cryptoEndpoint   = "https://apiv2.bitcoinaverage.com/indices/crypto/ticker/all?crypto=BTC," + strings.Join(altcoins, ",")
 	httpClient       = &http.Client{Timeout: 10 * time.Second}
 	btcInvariantRate = exchangeRate{
 		Ask:  "1",
@@ -51,7 +53,9 @@ type exchangeRates map[string]exchangeRate
 // Proxy gets data from the API endpoint and caches it
 type Proxy struct {
 	// Settings
-	url        string
+	fiatURL   string
+	cryptoURL string
+
 	outfile    string
 	publicKey  string
 	privateKey string
@@ -62,8 +66,7 @@ type Proxy struct {
 	s3Bucket string
 
 	// Proxied data
-	lastResponseBody    []byte
-	lastResponseHeaders http.Header
+	lastResponseBody []byte
 
 	// Mechanics
 	ticker *time.Ticker
@@ -84,13 +87,14 @@ func New(speed int, pubkey string, privkey string, outfile string, s3Region stri
 		if err != nil {
 			return nil, err
 		}
-		s3CFG := aws.NewConfig().WithRegion(s3Region).WithCredentials(creds).WithLogLevel(aws.LogDebug)
+		s3CFG := aws.NewConfig().WithRegion(s3Region).WithCredentials(creds) //.WithLogLevel(aws.LogDebug)
 		s3Client = s3.New(session.New(), s3CFG)
 	}
 
 	return &Proxy{
 		// Settings
-		url:        tickerEndpoint,
+		fiatURL:    fiatEndpoint,
+		cryptoURL:  cryptoEndpoint,
 		outfile:    outfile,
 		publicKey:  pubkey,
 		privateKey: privkey,
@@ -120,49 +124,66 @@ func (p *Proxy) SetStream(stream *health.Stream) {
 func (p *Proxy) Fetch() error {
 	job := p.stream.NewJob("proxy.fetch")
 
-	// Create the http request
-	req, err := http.NewRequest("GET", p.url, nil)
-	if err != nil {
-		job.EventErr("request.new", err)
-		job.Complete(health.Error)
-		return err
+	// Request both endpoints and save their responses
+	httpReqs := map[string][]byte{
+		p.fiatURL:   nil,
+		p.cryptoURL: nil,
 	}
-	req.Header.Add("X-signature", createSignature(p.publicKey, p.privateKey))
-	fmt.Println(req.Header)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	for url := range httpReqs {
+		go func(url string) {
+			defer func() {
+				wg.Done()
+			}()
 
-	// Send the request
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		job.EventErr("request.make", err)
-		job.Complete(health.Error)
-		return err
-	}
-	defer resp.Body.Close()
+			kvs := kvs{"url": url}
 
-	// Read the response body
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		job.EventErr("request.read", err)
-		job.Complete(health.Error)
-		return err
-	}
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				job.EventErrKv("request.new", err, kvs)
+				job.Complete(health.Error)
+				return
+			}
+			req.Header.Add("X-signature", createSignature(p.publicKey, p.privateKey))
 
-	if resp.StatusCode != 200 {
-		job.EventErr("request.status", errors.New(string(body)))
-		job.Complete(health.Error)
-		return err
+			// Send the requests
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				job.EventErrKv("request.make", err, kvs)
+				job.Complete(health.Error)
+				return
+			}
+			defer resp.Body.Close()
+
+			// Read the response body
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				job.EventErrKv("request.read", err, kvs)
+				job.Complete(health.Error)
+				return
+			}
+
+			if resp.StatusCode != 200 {
+				job.EventErrKv("request.status", errors.New(string(body)), kvs)
+				job.Complete(health.Error)
+				return
+			}
+
+			// Save to map
+			httpReqs[url] = body
+		}(url)
 	}
+	wg.Wait()
 
 	// Save headers and formatted response
-	p.lastResponseHeaders = resp.Header
-	p.lastResponseBody, err = formatResponse(body)
+	var err error
+	p.lastResponseBody, err = formatResponse(httpReqs[p.fiatURL], httpReqs[p.cryptoURL])
 	if err != nil {
 		job.EventErr("request.format_response", err)
 		job.Complete(health.Error)
 		return err
 	}
-
-	fmt.Println(string(p.lastResponseBody))
 
 	// Cache to disk
 	if p.outfile != "" {
@@ -224,14 +245,6 @@ func (p *Proxy) String() string {
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	job := p.stream.NewJob("proxy.serve")
 
-	// Add headers
-	for key, vals := range p.lastResponseHeaders {
-		for _, val := range vals {
-			w.Header().Set(key, val)
-		}
-	}
-	w.Header().Set("X-OpenBazaar", "Trade free!")
-
 	// Write body
 	_, err := w.Write(p.lastResponseBody)
 	if err != nil {
@@ -257,25 +270,39 @@ func createSignature(publicKey string, privateKey string) string {
 	return fmt.Sprintf("%s.%s", payload, signature)
 }
 
-func formatResponse(body []byte) ([]byte, error) {
-	// Read API response into memory
-	incoming := make(exchangeRates)
-	err := json.Unmarshal(body, &incoming)
-	if err != nil {
-		return nil, err
+func formatResponse(fiatBody []byte, cryptoBody []byte) ([]byte, error) {
+	// Read API responses into memory
+	incomingFiat := make(exchangeRates)
+	incomingCrypto := make(exchangeRates)
+
+	if fiatBody != nil {
+		err := json.Unmarshal(fiatBody, &incomingFiat)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Prepare a new response, add BTC invariant, and add pairs
-	outgoing := make(exchangeRates, len(incoming)+1)
+	if cryptoBody != nil {
+		err := json.Unmarshal(cryptoBody, &incomingCrypto)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Prepare a new outgoing response
+	outgoing := make(exchangeRates, len(incomingFiat)+len(incomingCrypto)+1)
 	outgoing["BTC"] = btcInvariantRate
-	for k, v := range incoming {
-		// Copy BTC<x> pairs to the outgoing data
+
+	// Add data from fiat response
+	for k, v := range incomingFiat {
 		if strings.HasPrefix(k, "BTC") {
 			outgoing[strings.TrimPrefix(k, "BTC")] = v
-			continue
 		}
+	}
 
-		// Crypto pairs need to be reversed into BTC-<x> pairs
+	// Add data from crypto response
+	// Crypto pairs need to be reversed into BTC-<x> pairs
+	for k, v := range incomingCrypto {
 		for _, altcoinSymbol := range altcoins {
 			if k == altcoinSymbol+"BTC" {
 				ask, err := v.Ask.Float64()
@@ -300,8 +327,6 @@ func formatResponse(body []byte) ([]byte, error) {
 					Bid:  json.Number(strconv.FormatFloat(bid, 'G', -1, 32)),
 					Last: json.Number(strconv.FormatFloat(last, 'G', -1, 32)),
 				}
-				// outgoing[strings.TrimPrefix(k, "BTC")] = v
-				continue
 			}
 		}
 	}
