@@ -29,12 +29,3 @@ export AWS_REGION="us-east-1"               # An AWS region to write to
 export AWS_S3_BUCKET="openbazaar-ticker"    # An AWS bucket to write outputs to
 export TICKER_BUGSNAG_APIKEY="secretkey"    # A Bugsnag key for error monitoring
 ```
-
-	speed := getEnvString("TICKER_PROXY_SPEED", "900")
-	pubkey := getEnvString("TICKER_PROXY_PUBKEY", "")
-	privkey := getEnvString("TICKER_PROXY_PRIVKEY", "")
-
-	outfile := getEnvString("TICKER_PROXY_OUTFILE", "ticker_data.json")
-	bugsnagAPIKey := getEnvString("TICKER_BUGSNAG_APIKEY", "")
-	awsRegion := getEnvString("AWS_REGION", "us-east-1")
-	s3Bucket := getEnvString("AWS_S3_BUCKET", "openbazaar-ticker")
