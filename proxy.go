@@ -6,15 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -42,36 +40,35 @@ var (
 	}
 )
 
+// exchangeRate represents the desired price data
 type exchangeRate struct {
 	Ask  json.Number `json:"ask"`
 	Bid  json.Number `json:"bid"`
 	Last json.Number `json:"last"`
 }
 
+// exchangeRates represents a map of symbols to rate data for that symbol
 type exchangeRates map[string]exchangeRate
 
 // Proxy gets data from the API endpoint and caches it
 type Proxy struct {
-	// Settings
-	fiatURL   string
-	cryptoURL string
-
-	outfile    string
+	// Request Settings
+	fiatURL    string
+	cryptoURL  string
 	publicKey  string
 	privateKey string
-	speed      int
 
-	// S3
+	// Output settings
+	outfile  string
 	s3Client *s3.S3
 	s3Bucket string
 
-	// Proxied data
-	lastResponseBody []byte
+	// Output state
+	currentOutput []byte
 
 	// Mechanics
 	ticker *time.Ticker
 	stream *health.Stream
-
 	stopCh chan (struct{})
 	doneCh chan (struct{})
 }
@@ -92,26 +89,20 @@ func New(speed int, pubkey string, privkey string, outfile string, s3Region stri
 	}
 
 	return &Proxy{
-		// Settings
 		fiatURL:    fiatEndpoint,
 		cryptoURL:  cryptoEndpoint,
-		outfile:    outfile,
 		publicKey:  pubkey,
 		privateKey: privkey,
-		speed:      speed,
 
+		outfile:  outfile,
 		s3Client: s3Client,
 		s3Bucket: s3Bucket,
 
-		// Initial data
-		lastResponseBody: []byte("{}"),
-
-		// Mechanics
-		ticker: time.NewTicker(time.Duration(speed) * time.Second),
-		stream: health.NewStream(),
-
-		stopCh: make(chan (struct{})),
-		doneCh: make(chan (struct{})),
+		currentOutput: []byte("{}"),
+		ticker:        time.NewTicker(time.Duration(speed) * time.Second),
+		stream:        health.NewStream(),
+		stopCh:        make(chan (struct{})),
+		doneCh:        make(chan (struct{})),
 	}, nil
 }
 
@@ -125,10 +116,7 @@ func (p *Proxy) Fetch() error {
 	job := p.stream.NewJob("proxy.fetch")
 
 	// Request both endpoints and save their responses
-	httpReqs := map[string][]byte{
-		p.fiatURL:   nil,
-		p.cryptoURL: nil,
-	}
+	httpReqs := map[string][]byte{p.fiatURL: nil, p.cryptoURL: nil}
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	for url := range httpReqs {
@@ -137,37 +125,10 @@ func (p *Proxy) Fetch() error {
 				wg.Done()
 			}()
 
-			kvs := kvs{"url": url}
-
-			req, err := http.NewRequest("GET", url, nil)
+			body, err := p.fetchResponse(url)
 			if err != nil {
-				job.EventErrKv("request.new", err, kvs)
+				job.EventErrKv("request", err, kvs{"url": url})
 				job.Complete(health.Error)
-				return
-			}
-			req.Header.Add("X-signature", createSignature(p.publicKey, p.privateKey))
-
-			// Send the requests
-			resp, err := httpClient.Do(req)
-			if err != nil {
-				job.EventErrKv("request.make", err, kvs)
-				job.Complete(health.Error)
-				return
-			}
-			defer resp.Body.Close()
-
-			// Read the response body
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				job.EventErrKv("request.read", err, kvs)
-				job.Complete(health.Error)
-				return
-			}
-
-			if resp.StatusCode != 200 {
-				job.EventErrKv("request.status", errors.New(string(body)), kvs)
-				job.Complete(health.Error)
-				return
 			}
 
 			// Save to map
@@ -178,7 +139,7 @@ func (p *Proxy) Fetch() error {
 
 	// Save headers and formatted response
 	var err error
-	p.lastResponseBody, err = formatResponse(httpReqs[p.fiatURL], httpReqs[p.cryptoURL])
+	p.currentOutput, err = formatOutput(httpReqs[p.fiatURL], httpReqs[p.cryptoURL])
 	if err != nil {
 		job.EventErr("request.format_response", err)
 		job.Complete(health.Error)
@@ -187,7 +148,7 @@ func (p *Proxy) Fetch() error {
 
 	// Cache to disk
 	if p.outfile != "" {
-		err := ioutil.WriteFile(p.outfile, p.lastResponseBody, 0644)
+		err := ioutil.WriteFile(p.outfile, p.currentOutput, 0644)
 		if err != nil {
 			job.EventErr("request.write_to_outfile", err)
 			job.Complete(health.Error)
@@ -198,7 +159,7 @@ func (p *Proxy) Fetch() error {
 
 	// Upload to AWS
 	if p.s3Client != nil {
-		err = sendToS3(p.s3Client, p.s3Bucket, p.lastResponseBody)
+		err = sendToS3(p.s3Client, p.s3Bucket, p.currentOutput)
 		if err != nil {
 			job.EventErr("aws.write", err)
 			job.Complete(health.Error)
@@ -214,9 +175,10 @@ func (p *Proxy) Fetch() error {
 
 // Start requests the latest data and begins polling every tick
 func (p *Proxy) Start() {
-	p.stream.EventKv("proxy.starting", kvs{"public_key": p.publicKey, "speed": strconv.Itoa(p.speed)})
+	p.stream.EventKv("proxy.starting", kvs{"public_key": p.publicKey})
 
 	p.Fetch()
+
 	for {
 		select {
 		case <-p.stopCh:
@@ -237,22 +199,7 @@ func (p *Proxy) Stop() {
 
 // String returns the latest response from the API as a string
 func (p *Proxy) String() string {
-	return string(p.lastResponseBody)
-}
-
-// ServeHTTP is an `http.Handler` that just returns the lastest response from
-// the upstream server
-func (p *Proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	job := p.stream.NewJob("proxy.serve")
-
-	// Write body
-	_, err := w.Write(p.lastResponseBody)
-	if err != nil {
-		job.EventErr("write", err)
-		job.Complete(health.Error)
-	}
-
-	job.Complete(health.Success)
+	return string(p.currentOutput)
 }
 
 // createSignature generates a bitcoinaverage.com API signature
@@ -261,7 +208,6 @@ func createSignature(publicKey string, privateKey string) string {
 	payload := fmt.Sprintf("%d.%s", time.Now().Unix(), publicKey)
 
 	// Generate the HMAC-sha256 signature
-	// As per the docs, do not decode the key base64, but do encode the output
 	mac := hmac.New(sha256.New, []byte(privateKey))
 	mac.Write([]byte(payload))
 	signature := hex.EncodeToString(mac.Sum(nil))
@@ -270,52 +216,97 @@ func createSignature(publicKey string, privateKey string) string {
 	return fmt.Sprintf("%s.%s", payload, signature)
 }
 
-func formatResponse(fiatBody []byte, cryptoBody []byte) ([]byte, error) {
-	// Read API responses into memory
-	incomingFiat := make(exchangeRates)
-	incomingCrypto := make(exchangeRates)
+// fetchResponse gets the response for a given BitcoinAverage endpoint
+func (p *Proxy) fetchResponse(url string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("X-signature", createSignature(p.publicKey, p.privateKey))
 
+	// Send the requests
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return an error if no success, otherwise return our body
+	if resp.StatusCode != 200 {
+		return nil, err
+	}
+	return body, nil
+}
+
+// formatOutput formats BitcoinAverage responses into our desired output format
+func formatOutput(fiatBody []byte, cryptoBody []byte) ([]byte, error) {
+	// Prepare a new output
+	output := exchangeRates{"BTC": btcInvariantRate}
+
+	// Process each response body
 	if fiatBody != nil {
+		incomingFiat := make(exchangeRates)
 		err := json.Unmarshal(fiatBody, &incomingFiat)
 		if err != nil {
 			return nil, err
 		}
+
+		formatFiatOutput(output, incomingFiat)
 	}
 
 	if cryptoBody != nil {
+		incomingCrypto := make(exchangeRates)
 		err := json.Unmarshal(cryptoBody, &incomingCrypto)
+		if err != nil {
+			return nil, err
+		}
+
+		err = formatCrytpoOutput(output, incomingCrypto)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Prepare a new outgoing response
-	outgoing := make(exchangeRates, len(incomingFiat)+len(incomingCrypto)+1)
-	outgoing["BTC"] = btcInvariantRate
+	// Serialize the formatted response
+	outputBytes, err := json.Marshal(output)
+	if err != nil {
+		return nil, err
+	}
 
-	// Add data from fiat response
-	for k, v := range incomingFiat {
+	return outputBytes, nil
+}
+
+// formatFiatOutput formats BTC->fiat pairs
+func formatFiatOutput(outgoing exchangeRates, incoming exchangeRates) {
+	for k, v := range incoming {
 		if strings.HasPrefix(k, "BTC") {
 			outgoing[strings.TrimPrefix(k, "BTC")] = v
 		}
 	}
+}
 
-	// Add data from crypto response
-	// Crypto pairs need to be reversed into BTC-<x> pairs
-	for k, v := range incomingCrypto {
+// formatCrytpoOutput formats BTC->crypto pairs
+func formatCrytpoOutput(outgoing exchangeRates, incoming exchangeRates) error {
+	for k, v := range incoming {
 		for _, altcoinSymbol := range altcoins {
 			if k == altcoinSymbol+"BTC" {
 				ask, err := v.Ask.Float64()
 				if err != nil {
-					return nil, err
+					return err
 				}
 				bid, err := v.Bid.Float64()
 				if err != nil {
-					return nil, err
+					return err
 				}
 				last, err := v.Last.Float64()
 				if err != nil {
-					return nil, err
+					return err
 				}
 
 				ask = 1.0 / ask
@@ -330,16 +321,10 @@ func formatResponse(fiatBody []byte, cryptoBody []byte) ([]byte, error) {
 			}
 		}
 	}
-
-	// Serialize the formatted response
-	outgoingBytes, err := json.Marshal(outgoing)
-	if err != nil {
-		return nil, err
-	}
-
-	return outgoingBytes, nil
+	return nil
 }
 
+// sendToS3 uploads the given data to the configured S3 bucket
 func sendToS3(s3Client *s3.S3, bucket string, data []byte) error {
 	_, err := s3Client.PutObject(&s3.PutObjectInput{
 		Key:           aws.String("api"),
