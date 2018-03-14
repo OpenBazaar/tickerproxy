@@ -78,7 +78,7 @@ func New(speed int, pubkey string, privkey string, outfile string, s3Region stri
 	var s3Client *s3.S3
 
 	// Configure S3 client unless we're in test mode
-	if s3Region != TestS3Region {
+	if s3Region != "" && s3Region != TestS3Region {
 		creds := credentials.NewEnvCredentials()
 		_, err := creds.Get()
 		if err != nil {
