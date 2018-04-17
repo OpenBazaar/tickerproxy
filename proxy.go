@@ -29,9 +29,8 @@ const TestS3Region = "test"
 
 // Set package-level private vars
 var (
-	altcoins         = []string{"BCH", "ZEC", "LTC", "XMR", "ETH"}
 	fiatEndpoint     = "https://apiv2.bitcoinaverage.com/indices/global/ticker/all?crypto=BTC"
-	cryptoEndpoint   = "https://apiv2.bitcoinaverage.com/indices/crypto/ticker/all?crypto=BTC," + strings.Join(altcoins, ",")
+	cryptoEndpoint   = "https://apiv2.bitcoinaverage.com/indices/crypto/ticker/all"
 	httpClient       = &http.Client{Timeout: 10 * time.Second}
 	btcInvariantRate = exchangeRate{
 		Ask:  "1",
@@ -267,7 +266,7 @@ func formatOutput(fiatBody []byte, cryptoBody []byte) ([]byte, error) {
 			return nil, err
 		}
 
-		err = formatCrytpoOutput(output, incomingCrypto)
+		err = formatCryptoOutput(output, incomingCrypto)
 		if err != nil {
 			return nil, err
 		}
@@ -291,34 +290,37 @@ func formatFiatOutput(outgoing exchangeRates, incoming exchangeRates) {
 	}
 }
 
-// formatCrytpoOutput formats BTC->crypto pairs
-func formatCrytpoOutput(outgoing exchangeRates, incoming exchangeRates) error {
+// formatCryptoOutput formats BTC->crypto pairs
+func formatCryptoOutput(outgoing exchangeRates, incoming exchangeRates) error {
+	var altcoinSymbol string
 	for k, v := range incoming {
-		for _, altcoinSymbol := range altcoins {
-			if k == altcoinSymbol+"BTC" {
-				ask, err := v.Ask.Float64()
-				if err != nil {
-					return err
-				}
-				bid, err := v.Bid.Float64()
-				if err != nil {
-					return err
-				}
-				last, err := v.Last.Float64()
-				if err != nil {
-					return err
-				}
+		if !strings.HasSuffix(k, "BTC") {
+			continue
+		}
 
-				ask = 1.0 / ask
-				bid = 1.0 / bid
-				last = 1.0 / last
+		altcoinSymbol = strings.TrimSuffix(k, "BTC")
 
-				outgoing[altcoinSymbol] = exchangeRate{
-					Ask:  json.Number(strconv.FormatFloat(ask, 'G', -1, 32)),
-					Bid:  json.Number(strconv.FormatFloat(bid, 'G', -1, 32)),
-					Last: json.Number(strconv.FormatFloat(last, 'G', -1, 32)),
-				}
-			}
+		ask, err := v.Ask.Float64()
+		if err != nil {
+			return err
+		}
+		bid, err := v.Bid.Float64()
+		if err != nil {
+			return err
+		}
+		last, err := v.Last.Float64()
+		if err != nil {
+			return err
+		}
+
+		ask = 1.0 / ask
+		bid = 1.0 / bid
+		last = 1.0 / last
+
+		outgoing[altcoinSymbol] = exchangeRate{
+			Ask:  json.Number(strconv.FormatFloat(ask, 'G', -1, 32)),
+			Bid:  json.Number(strconv.FormatFloat(bid, 'G', -1, 32)),
+			Last: json.Number(strconv.FormatFloat(last, 'G', -1, 32)),
 		}
 	}
 	return nil
