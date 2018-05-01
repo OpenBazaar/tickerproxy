@@ -36,6 +36,7 @@ var (
 		Ask:  "1",
 		Bid:  "1",
 		Last: "1",
+		Type: exchangeRateTypeCrypto.String(),
 	}
 )
 
@@ -44,6 +45,7 @@ type exchangeRate struct {
 	Ask  json.Number `json:"ask"`
 	Bid  json.Number `json:"bid"`
 	Last json.Number `json:"last"`
+	Type string      `json:"type"`
 }
 
 // exchangeRates represents a map of symbols to rate data for that symbol
@@ -284,6 +286,7 @@ func formatOutput(fiatBody []byte, cryptoBody []byte) ([]byte, error) {
 // formatFiatOutput formats BTC->fiat pairs
 func formatFiatOutput(outgoing exchangeRates, incoming exchangeRates) {
 	for k, v := range incoming {
+		v.Type = exchangeRateTypeFiat.String()
 		if strings.HasPrefix(k, "BTC") {
 			outgoing[strings.TrimPrefix(k, "BTC")] = v
 		}
@@ -318,6 +321,7 @@ func formatCryptoOutput(outgoing exchangeRates, incoming exchangeRates) error {
 		last = 1.0 / last
 
 		outgoing[altcoinSymbol] = exchangeRate{
+			Type: exchangeRateTypeCrypto.String(),
 			Ask:  json.Number(strconv.FormatFloat(ask, 'G', -1, 32)),
 			Bid:  json.Number(strconv.FormatFloat(bid, 'G', -1, 32)),
 			Last: json.Number(strconv.FormatFloat(last, 'G', -1, 32)),
