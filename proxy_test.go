@@ -34,7 +34,7 @@ const (
 	}
 }`
 
-	testExpectedProxiedResponse = `{"BCH":{"ask":0.16666667,"bid":0.14285715,"last":0.125},"BTC":{"ask":1,"bid":1,"last":1},"USD":{"ask":1,"bid":2,"last":3},"ZEC":{"ask":0.016666668,"bid":0.014285714,"last":0.0125}}`
+	testExpectedProxiedResponse = `{"BCH":{"ask":0.16666667,"bid":0.14285715,"last":0.125,"type":"crypto"},"BTC":{"ask":1,"bid":1,"last":1,"type":"crypto"},"USD":{"ask":1,"bid":2,"last":3,"type":"fiat"},"ZEC":{"ask":0.016666668,"bid":0.014285714,"last":0.0125,"type":"crypto"}}`
 )
 
 func init() {
