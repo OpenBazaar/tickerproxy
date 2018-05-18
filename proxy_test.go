@@ -37,7 +37,7 @@ const (
 		}
 	}`
 
-	testExpectedProxiedResponse = `{"$$$":{"ask":0.998877,"bid":0.998877,"last":0.998877,"type":"crypto"},"BCH":{"ask":0.16666667,"bid":0.14285715,"last":0.125,"type":"crypto"},"BTC":{"ask":1,"bid":1,"last":1,"type":"crypto"},"SOIL":{"ask":0.0012345,"bid":0.0012345,"last":0.0012345,"type":"crypto"},"USD":{"ask":1,"bid":2,"last":3,"type":"fiat"},"ZEC":{"ask":0.016666668,"bid":0.014285714,"last":0.0125,"type":"crypto"}}`
+	testExpectedProxiedResponse = `{"$$$":{"ask":1.0011242625468402,"bid":1.0011242625468402,"last":1.0011242625468402,"type":"crypto"},"BCH":{"ask":0.16666667,"bid":0.14285715,"last":0.125,"type":"crypto"},"BTC":{"ask":1,"bid":1,"last":1,"type":"crypto"},"SOIL":{"ask":810.0445524503848,"bid":810.0445524503848,"last":810.0445524503848,"type":"crypto"},"USD":{"ask":1,"bid":2,"last":3,"type":"fiat"},"ZEC":{"ask":0.016666668,"bid":0.014285714,"last":0.0125,"type":"crypto"}}`
 )
 
 func init() {

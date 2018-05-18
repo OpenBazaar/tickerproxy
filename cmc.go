@@ -21,7 +21,7 @@ type cmcResponse struct {
 		Symbol string `json:"symbol"`
 		Quotes struct {
 			BTC struct {
-				Price float64 `json:"price"`
+				Price json.Number `json:"price"`
 			} `json:"BTC"`
 		} `json:"quotes"`
 	} `json:"data"`
@@ -87,7 +87,18 @@ func (f *cmcFetcher) fetchPage(start int) (*cmcResponse, error) {
 
 func addPage(rates exchangeRates, pageResp *cmcResponse) {
 	for _, entry := range pageResp.Data {
-		formattedPrice := json.Number(strconv.FormatFloat(entry.Quotes.BTC.Price, 'G', -1, 64))
+		price, err := entry.Quotes.BTC.Price.Float64()
+		if err != nil {
+			continue
+		}
+
+		var formattedPrice json.Number
+		if price == 0 {
+			formattedPrice = json.Number("0")
+		} else {
+			formattedPrice = json.Number(strconv.FormatFloat(1.0/price, 'G', -1, 64))
+		}
+
 		rates[entry.Symbol] = exchangeRate{
 			Type: exchangeRateTypeCrypto.String(),
 			Ask:  formattedPrice,
