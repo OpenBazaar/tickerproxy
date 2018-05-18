@@ -1,4 +1,4 @@
-package tickerproxy
+package ticker
 
 import (
 	"fmt"
@@ -13,28 +13,31 @@ import (
 )
 
 const (
-	testFiatResponseBody = `{
-  "BTCUSD": {
-    "ask": "1",
-    "bid": "2",
-		"last": "3"
-	}
-}`
+	testFiatResponseBody = `{"BTCUSD": {"ask": "1","bid": "2","last": "3"}}`
 
-	testCryptoResponseBody = `{
-  "BCHBTC": {
-    "ask": "6",
-    "bid": "7",
-		"last": "8"
-	},
-  "ZECBTC": {
-    "ask": "60",
-    "bid": "70",
-		"last": "80"
-	}
-}`
+	testCryptoResponseBody = `{"BCHBTC": {"ask": "6","bid": "7","last": "8"},"ZECBTC": {"ask": "60","bid": "70","last": "80"}}`
 
-	testExpectedProxiedResponse = `{"BCH":{"ask":0.16666667,"bid":0.14285715,"last":0.125,"type":"crypto"},"BTC":{"ask":1,"bid":1,"last":1,"type":"crypto"},"USD":{"ask":1,"bid":2,"last":3,"type":"fiat"},"ZEC":{"ask":0.016666668,"bid":0.014285714,"last":0.0125,"type":"crypto"}}`
+	testCMCResponseBodyPage1 = `{
+		"metadata": {"num_cryptocurrencies": 102},
+		"data": {
+				"1": {
+						"symbol": "SOIL",
+						"quotes": {"BTC": {"price": 0.0012345}}
+				}
+		}
+	}`
+
+	testCMCResponseBodyPage2 = `{
+		"metadata": {"num_cryptocurrencies": 102},
+		"data": {
+				"101": {
+						"symbol": "$$$",
+						"quotes": {"BTC": {"price": 0.998877}}
+				}
+		}
+	}`
+
+	testExpectedProxiedResponse = `{"$$$":{"ask":0.998877,"bid":0.998877,"last":0.998877,"type":"crypto"},"BCH":{"ask":0.16666667,"bid":0.14285715,"last":0.125,"type":"crypto"},"BTC":{"ask":1,"bid":1,"last":1,"type":"crypto"},"SOIL":{"ask":0.0012345,"bid":0.0012345,"last":0.0012345,"type":"crypto"},"USD":{"ask":1,"bid":2,"last":3,"type":"fiat"},"ZEC":{"ask":0.016666668,"bid":0.014285714,"last":0.0125,"type":"crypto"}}`
 )
 
 func init() {
@@ -45,8 +48,10 @@ func TestProxy(t *testing.T) {
 	// Create external http mocks
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
-	httpmock.RegisterResponder("GET", fiatEndpoint, httpmock.NewStringResponder(200, testFiatResponseBody))
-	httpmock.RegisterResponder("GET", cryptoEndpoint, httpmock.NewStringResponder(200, testCryptoResponseBody))
+	httpmock.RegisterResponder("GET", btcavgFiatEndpoint, httpmock.NewStringResponder(200, testFiatResponseBody))
+	httpmock.RegisterResponder("GET", btcavgCryptoEndpoint, httpmock.NewStringResponder(200, testCryptoResponseBody))
+	httpmock.RegisterResponder("GET", cmcBaseEndpoint+"1", httpmock.NewStringResponder(200, testCMCResponseBodyPage1))
+	httpmock.RegisterResponder("GET", cmcBaseEndpoint+"101", httpmock.NewStringResponder(200, testCMCResponseBodyPage2))
 
 	// Prepare outfile
 	outfile := fmt.Sprintf("/tmp/ticker_proxy_test_%d.json", rand.Int())
