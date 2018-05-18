@@ -1,52 +1,50 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
 
 	"github.com/OpenBazaar/tickerproxy"
 	"github.com/gocraft/health"
 	"github.com/gocraft/health/sinks/bugsnag"
 )
 
+type config struct {
+	outPath       string
+	awsS3Region   string
+	awsS3Bucket   string
+	btcAVGPubkey  string
+	btcAVGPrivkey string
+	bugsnagAPIKey string
+}
+
+func newConfig() config {
+	return config{
+		outPath:       getEnvString("TICKER_OUT_PATH", "./"),
+		awsS3Region:   getEnvString("AWS_S3_REGION", ""),
+		awsS3Bucket:   getEnvString("AWS_S3_BUCKET", ""),
+		btcAVGPubkey:  getEnvString("TICKER_BTCAVG_PUBKEY", ""),
+		btcAVGPrivkey: getEnvString("TICKER_BTCAVG_PRIVKEY", ""),
+		bugsnagAPIKey: getEnvString("TICKER_BUGSNAG_APIKEY", ""),
+	}
+}
+
 func main() {
-	// Get configuration
-	speed := getEnvString("TICKER_PROXY_SPEED", "900")
-	pubkey := getEnvString("TICKER_PROXY_PUBKEY", "")
-	privkey := getEnvString("TICKER_PROXY_PRIVKEY", "")
-	outfile := getEnvString("TICKER_PROXY_OUTFILE", "/var/lib/tickerproxy/ticker_data.json")
-	bugsnagAPIKey := getEnvString("TICKER_BUGSNAG_APIKEY", "")
-	awsRegion := getEnvString("AWS_REGION", "")
-	s3Bucket := getEnvString("AWS_S3_BUCKET", "")
+	conf := newConfig()
 
-	// Create instrumentation stream
-	stream := newHealthStream(bugsnagAPIKey)
-
-	// Convert speed to an int of seconds, and then into a time.Duration
-	speedInt, err := strconv.Atoi(speed)
+	writers, err := getWriters(conf.outPath, conf.awsS3Region, conf.awsS3Bucket)
 	if err != nil {
-		panic(err)
+		log.Fatalln("creating writers failed:", err)
 	}
 
-	// Create and start a `tickerproxy.Proxy`
-	proxy, err := tickerproxy.New(speedInt, pubkey, privkey, outfile, awsRegion, s3Bucket)
+	err = ticker.Fetch(
+		newHealthStream(conf.bugsnagAPIKey),
+		conf.btcAVGPubkey,
+		conf.btcAVGPrivkey,
+		writers...)
 	if err != nil {
-		fmt.Printf("ticker failed: %s", err)
+		log.Fatalln("ticker failed:", err)
 	}
-
-	proxy.SetStream(stream)
-	go proxy.Start()
-	stream.Event("started")
-
-	// Wait for shutdown signal
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
-	<-c
-	stream.Event("shutdown")
-	proxy.Stop()
 }
 
 func getEnvString(key string, defaultVal string) string {
@@ -66,4 +64,22 @@ func newHealthStream(bugsnagAPIKey string) *health.Stream {
 	}
 
 	return stream
+}
+
+func getWriters(outfile string, s3Region string, s3Bucket string) ([]ticker.Writer, error) {
+	writers := []ticker.Writer{}
+
+	if outfile != "" {
+		writers = append(writers, ticker.NewFileSystemWriter(outfile))
+	}
+
+	if s3Region != "" {
+		writer, err := ticker.NewS3Writer(s3Region, s3Bucket)
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, writer)
+	}
+
+	return writers, nil
 }
