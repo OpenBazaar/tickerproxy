@@ -1,17 +1,10 @@
-package tickerproxy
+package ticker
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,21 +17,9 @@ import (
 // kvs is a helper type for logging
 type kvs health.Kvs
 
-// TestS3Region is the region to use in test mode
-const TestS3Region = "test"
-
-// Set package-level private vars
-var (
-	fiatEndpoint     = "https://apiv2.bitcoinaverage.com/indices/global/ticker/all?crypto=BTC"
-	cryptoEndpoint   = "https://apiv2.bitcoinaverage.com/indices/crypto/ticker/all"
-	httpClient       = &http.Client{Timeout: 10 * time.Second}
-	btcInvariantRate = exchangeRate{
-		Ask:  "1",
-		Bid:  "1",
-		Last: "1",
-		Type: exchangeRateTypeCrypto.String(),
-	}
-)
+type rateFetcher interface {
+	fetch() (exchangeRates, error)
+}
 
 // exchangeRate represents the desired price data
 type exchangeRate struct {
@@ -51,13 +32,23 @@ type exchangeRate struct {
 // exchangeRates represents a map of symbols to rate data for that symbol
 type exchangeRates map[string]exchangeRate
 
+// TestS3Region is the region to use in test mode
+const TestS3Region = "test"
+
+// Set package-level private vars
+var (
+	httpClient       = &http.Client{Timeout: 30 * time.Second}
+	btcInvariantRate = exchangeRate{
+		Ask:  "1",
+		Bid:  "1",
+		Last: "1",
+		Type: exchangeRateTypeCrypto.String(),
+	}
+)
+
 // Proxy gets data from the API endpoint and caches it
 type Proxy struct {
-	// Request Settings
-	fiatURL    string
-	cryptoURL  string
-	publicKey  string
-	privateKey string
+	fetchers []rateFetcher
 
 	// Output settings
 	outfile  string
@@ -90,10 +81,10 @@ func New(speed int, pubkey string, privkey string, outfile string, s3Region stri
 	}
 
 	return &Proxy{
-		fiatURL:    fiatEndpoint,
-		cryptoURL:  cryptoEndpoint,
-		publicKey:  pubkey,
-		privateKey: privkey,
+		fetchers: []rateFetcher{
+			newCMCFetcher(),
+			newBTCAVGFetcher(pubkey, privkey),
+		},
 
 		outfile:  outfile,
 		s3Client: s3Client,
@@ -112,61 +103,39 @@ func (p *Proxy) SetStream(stream *health.Stream) {
 	p.stream = stream
 }
 
-// Fetch gets the latest data from the API server
+// Fetch gets data from all endpoints and caches them
 func (p *Proxy) Fetch() error {
 	job := p.stream.NewJob("proxy.fetch")
 
-	// Request both endpoints and save their responses
-	httpReqs := map[string][]byte{p.fiatURL: nil, p.cryptoURL: nil}
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	for url := range httpReqs {
-		go func(url string) {
-			defer func() {
-				wg.Done()
-			}()
-
-			body, err := p.fetchResponse(url)
-			if err != nil {
-				job.EventErrKv("request", err, kvs{"url": url})
-				job.Complete(health.Error)
-			}
-
-			// Save to map
-			httpReqs[url] = body
-		}(url)
-	}
-	wg.Wait()
-
-	// Save headers and formatted response
-	var err error
-	p.currentOutput, err = formatOutput(httpReqs[p.fiatURL], httpReqs[p.cryptoURL])
+	// Fetch
+	output, err := p.fetchAll()
 	if err != nil {
-		job.EventErr("request.format_response", err)
+		job.EventErr("fetch_all", err)
 		job.Complete(health.Error)
 		return err
 	}
+	p.currentOutput = output
 
 	// Cache to disk
 	if p.outfile != "" {
 		err := ioutil.WriteFile(p.outfile, p.currentOutput, 0644)
 		if err != nil {
-			job.EventErr("request.write_to_outfile", err)
+			job.EventErr("write.outfile", err)
 			job.Complete(health.Error)
 			return err
 		}
-		job.EventKv("request.write_to_outfile", kvs{"file": p.outfile})
+		job.EventKv("write.outfile", kvs{"file": p.outfile})
 	}
 
 	// Upload to AWS
 	if p.s3Client != nil {
 		err = sendToS3(p.s3Client, p.s3Bucket, p.currentOutput)
 		if err != nil {
-			job.EventErr("aws.write", err)
+			job.EventErr("write.s3", err)
 			job.Complete(health.Error)
 			return err
 		}
-		job.Event("aws.write")
+		job.Event("write.s3")
 	}
 
 	job.Complete(health.Success)
@@ -176,7 +145,7 @@ func (p *Proxy) Fetch() error {
 
 // Start requests the latest data and begins polling every tick
 func (p *Proxy) Start() {
-	p.stream.EventKv("proxy.starting", kvs{"public_key": p.publicKey})
+	p.stream.Event("proxy.starting")
 
 	p.Fetch()
 
@@ -203,134 +172,24 @@ func (p *Proxy) String() string {
 	return string(p.currentOutput)
 }
 
-// createSignature generates a bitcoinaverage.com API signature
-func createSignature(publicKey string, privateKey string) string {
-	// Build payload
-	payload := fmt.Sprintf("%d.%s", time.Now().Unix(), publicKey)
-
-	// Generate the HMAC-sha256 signature
-	mac := hmac.New(sha256.New, []byte(privateKey))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
-
-	// Return the final payload
-	return fmt.Sprintf("%s.%s", payload, signature)
-}
-
-// fetchResponse gets the response for a given BitcoinAverage endpoint
-func (p *Proxy) fetchResponse(url string) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Add("X-signature", createSignature(p.publicKey, p.privateKey))
-
-	// Send the requests
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// Read the response body
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return an error if no success, otherwise return our body
-	if resp.StatusCode != 200 {
-		return nil, err
-	}
-	return body, nil
-}
-
-// formatOutput formats BitcoinAverage responses into our desired output format
-func formatOutput(fiatBody []byte, cryptoBody []byte) ([]byte, error) {
-	// Prepare a new output
-	output := exchangeRates{"BTC": btcInvariantRate}
-
-	// Process each response body
-	if fiatBody != nil {
-		incomingFiat := make(exchangeRates)
-		err := json.Unmarshal(fiatBody, &incomingFiat)
+func (p *Proxy) fetchAll() ([]byte, error) {
+	allRates := []exchangeRates{}
+	for _, f := range p.fetchers {
+		rates, err := f.fetch()
 		if err != nil {
 			return nil, err
 		}
-
-		formatFiatOutput(output, incomingFiat)
+		allRates = append(allRates, rates)
 	}
 
-	if cryptoBody != nil {
-		incomingCrypto := make(exchangeRates)
-		err := json.Unmarshal(cryptoBody, &incomingCrypto)
-		if err != nil {
-			return nil, err
-		}
-
-		err = formatCryptoOutput(output, incomingCrypto)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Serialize the formatted response
-	outputBytes, err := json.Marshal(output)
+	mergedRatesBytes, err := json.Marshal(mergeRates(allRates))
 	if err != nil {
 		return nil, err
 	}
 
-	return outputBytes, nil
+	return mergedRatesBytes, nil
 }
 
-// formatFiatOutput formats BTC->fiat pairs
-func formatFiatOutput(outgoing exchangeRates, incoming exchangeRates) {
-	for k, v := range incoming {
-		v.Type = exchangeRateTypeFiat.String()
-		if strings.HasPrefix(k, "BTC") {
-			outgoing[strings.TrimPrefix(k, "BTC")] = v
-		}
-	}
-}
-
-// formatCryptoOutput formats BTC->crypto pairs
-func formatCryptoOutput(outgoing exchangeRates, incoming exchangeRates) error {
-	var altcoinSymbol string
-	for k, v := range incoming {
-		if !strings.HasSuffix(k, "BTC") {
-			continue
-		}
-
-		altcoinSymbol = strings.TrimSuffix(k, "BTC")
-
-		ask, err := v.Ask.Float64()
-		if err != nil {
-			return err
-		}
-		bid, err := v.Bid.Float64()
-		if err != nil {
-			return err
-		}
-		last, err := v.Last.Float64()
-		if err != nil {
-			return err
-		}
-
-		ask = 1.0 / ask
-		bid = 1.0 / bid
-		last = 1.0 / last
-
-		outgoing[altcoinSymbol] = exchangeRate{
-			Type: exchangeRateTypeCrypto.String(),
-			Ask:  json.Number(strconv.FormatFloat(ask, 'G', -1, 32)),
-			Bid:  json.Number(strconv.FormatFloat(bid, 'G', -1, 32)),
-			Last: json.Number(strconv.FormatFloat(last, 'G', -1, 32)),
-		}
-	}
-	return nil
-}
-
-// sendToS3 uploads the given data to the configured S3 bucket
 func sendToS3(s3Client *s3.S3, bucket string, data []byte) error {
 	_, err := s3Client.PutObject(&s3.PutObjectInput{
 		Key:           aws.String("api"),
@@ -344,4 +203,18 @@ func sendToS3(s3Client *s3.S3, bucket string, data []byte) error {
 	}
 
 	return nil
+}
+
+func mergeRates(allRates []exchangeRates) exchangeRates {
+	if len(allRates) == 0 {
+		return nil
+	}
+
+	base := allRates[0]
+	for _, rates := range allRates {
+		for k, v := range rates {
+			base[k] = v
+		}
+	}
+	return base
 }

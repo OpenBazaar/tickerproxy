@@ -31,8 +31,8 @@ func main() {
 		panic(err)
 	}
 
-	// Create and start a `tickerproxy.Proxy`
-	proxy, err := tickerproxy.New(speedInt, pubkey, privkey, outfile, awsRegion, s3Bucket)
+	// Create and start a `ticker.Proxy`
+	proxy, err := ticker.New(speedInt, pubkey, privkey, outfile, awsRegion, s3Bucket)
 	if err != nil {
 		fmt.Printf("ticker failed: %s", err)
 	}

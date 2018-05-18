@@ -1,4 +1,4 @@
-package tickerproxy
+package ticker
 
 type exchangeRateType int
 
