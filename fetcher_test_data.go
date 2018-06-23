@@ -10,7 +10,7 @@ var httpMocks = map[string]string{
 
 	btcavgCryptoEndpoint: `{
 		"BCHBTC": {"ask": "111","bid": "112","last": "113"},
-		"ZECBTC": {"ask": "121","bid": "122","last": "123"},
+		"NOTBTC": {"ask": "121","bid": "122","last": "123"},
 		"SOILBTC": {"ask": "131","bid": "132","last": "133"},
 		"MIOTABTC": {"ask": "141","bid": "142","last": "143"},
 		"ACCBTC": {"ask": "151","bid": "152","last": "153"},
@@ -25,6 +25,11 @@ var httpMocks = map[string]string{
 				"id": 1,
 				"symbol": "SOIL",
 				"quotes": {"BTC": {"price": 0.0012345}}
+			},
+			"1831": {
+				"id": 1831,
+				"symbol": "BCH",
+				"quotes": {"BTC": {"price": 0.5}}
 			},
 			"2224": {
 				"id": 2224,
@@ -78,9 +83,9 @@ var testExpectedFetchData = regexp.MustCompile("\\s").ReplaceAllString(`{
     "last": 449.4382
   },
   "BCH": {
-    "ask": 0.009009009,
-    "bid": 0.008928572,
-    "last": 0.0088495575
+    "ask": 2,
+    "bid": 2,
+    "last": 2
   },
   "BTC": {
     "ask": 1,
@@ -91,6 +96,11 @@ var testExpectedFetchData = regexp.MustCompile("\\s").ReplaceAllString(`{
     "ask": 980.39215,
     "bid": 980.39215,
     "last": 980.39215
+	},
+  "NOT": {
+    "ask": 0.008264462,
+    "bid": 0.008196721,
+    "last": 0.008130081
   },
   "SOIL": {
     "ask": 810.04456,
@@ -101,10 +111,5 @@ var testExpectedFetchData = regexp.MustCompile("\\s").ReplaceAllString(`{
     "ask": 1,
     "bid": 2,
     "last": 3
-  },
-  "ZEC": {
-    "ask": 0.008264462,
-    "bid": 0.008196721,
-    "last": 0.008130081
   }
 }`, "")

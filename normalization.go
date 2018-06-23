@@ -11,9 +11,19 @@ var AltSymbolsToCanonicalSymbols = map[string]string{
 	"MIOTA": "IOTA",
 }
 
-// PinnedSymbolsToIDs maps symbols that are used by multiple coinsto a single
-// coin by its CMC IDs.
+// PinnedSymbolsToIDs maps symbols that may be used by multiple coins to a
+// single coin by its CMC IDs.
 var PinnedSymbolsToIDs = map[string]int64{
+	"BTC":  1,    // Bitcoin
+	"LTC":  2,    // Litecoin
+	"NXT":  66,   // Nxt
+	"DOGE": 74,   // Dogecoin
+	"DASH": 131,  // Dash
+	"XMR":  328,  // Monero
+	"ETH":  1027, // Ethereum
+	"ZEC":  1437, // Zcash
+	"BCH":  1831, // Bitcoin Cash
+
 	"BTG":  2083, // Bitcoin Gold
 	"CMT":  2246, // CyberMiles
 	"KNC":  1982, // Kyber Network
