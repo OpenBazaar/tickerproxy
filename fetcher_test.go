@@ -38,7 +38,7 @@ func TestFetch(t *testing.T) {
 	// Fetch data
 	Fetch(stream, "pubkey", "privkey", func(_ *health.Job, data []byte) error {
 		if string(data) != testExpectedFetchData {
-			t.Fatal("Fetch returned incorrect data")
+			t.Fatal("Fetch returned incorrect data\nGot:", string(data), "\nWanted:", testExpectedFetchData)
 		}
 		return nil
 	}, NewFileSystemWriter(outfilePath))
