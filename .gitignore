@@ -1,0 +1,6 @@
+.vscode
+.ackrc
+
+*.swp
+*.test
+*.out
