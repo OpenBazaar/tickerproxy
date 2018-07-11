@@ -12,7 +12,7 @@ var httpMocks = map[string]string{
 		"BCHBTC": {"ask": "0.5","0.5": "0.5","last": "0.5"},
 		"NOTBTC": {"ask": "121","bid": "122","last": "123"},
 		"SOILBTC": {"ask": "0.0012345","bid": "0.0012345","last": "0.0012345"},
-		"MIOTABTC": {"ask": "0.00102","bid": "0.00102","last": "0.00102"},
+		"IOTABTC": {"ask": "0.00102","bid": "0.00102","last": "0.00102"},
 		"ACCBTC": {"ask": "0.002225","bid": "0.002225","last": "0.002225"},
 		"ZEROBTC": {"ask": "0","0": "0","last": "0"},
 		"NOTANALTCOINRATE": {}
@@ -92,7 +92,7 @@ var testExpectedFetchData = regexp.MustCompile("\\s").ReplaceAllString(`{
     "bid": 1,
     "last": 1
   },
-  "IOTA": {
+  "MIOTA": {
     "ask": 980.39215,
     "bid": 980.39215,
     "last": 980.39215

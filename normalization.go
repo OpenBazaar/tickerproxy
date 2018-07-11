@@ -8,7 +8,7 @@ import (
 // AltSymbolsToCanonicalSymbols maps symbols that may be used in some sources to
 // represent coins that we use a different symbol for
 var AltSymbolsToCanonicalSymbols = map[string]string{
-	"MIOTA": "IOTA",
+	"IOTA": "MIOTA",
 }
 
 // PinnedSymbolsToIDs maps symbols that may be used by multiple coins to a
