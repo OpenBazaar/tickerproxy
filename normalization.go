@@ -5,6 +5,26 @@ import (
 	"log"
 )
 
+// RequiredSymbols are symbols we expect to be present and their absence should
+// be treated as an error.
+var RequiredSymbols = []string{
+	"USD",
+	"EUR",
+	"GBP",
+	"CAD",
+	"RUB",
+	"BRL",
+	"AUD",
+	"BGN",
+	"NOK",
+	"CZK",
+
+	"BTC",
+	"BCH",
+	"ZEC",
+	"ETH",
+}
+
 // AltSymbolsToCanonicalSymbols maps symbols that may be used in some sources to
 // represent coins that we use a different symbol for
 var AltSymbolsToCanonicalSymbols = map[string]string{
