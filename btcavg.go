@@ -74,7 +74,11 @@ func fetchBTCAVGResource(url string, pubkey string, privkey string) (exchangeRat
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("X-signature", createBTCAVGSignature(pubkey, privkey))
+	if privkey != "" {
+		req.Header.Add("X-signature", createBTCAVGSignature(pubkey, privkey))
+	} else {
+		req.Header.Add("X-testing", "testing")
+	}
 
 	// Send the requests
 	resp, err := httpClient.Do(req)
@@ -107,6 +111,16 @@ func fetchBTCAVGResource(url string, pubkey string, privkey string) (exchangeRat
 func formatBTCAVGFiatOutput(outgoing exchangeRates, incoming exchangeRates) {
 	for k, v := range incoming {
 		if strings.HasPrefix(k, "BTC") {
+
+			sym := strings.ToLower(strings.TrimPrefix(k, "BTC"))
+			if sym == "usd" {
+				fmt.Println("s1:", sym)
+			}
+			sym = CanonicalizeSymbol(sym)
+			if strings.ToLower(sym) == "usd" {
+				fmt.Println("s2:", sym)
+			}
+
 			outgoing[strings.TrimPrefix(k, "BTC")] = v
 		}
 	}
