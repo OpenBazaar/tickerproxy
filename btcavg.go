@@ -74,7 +74,11 @@ func fetchBTCAVGResource(url string, pubkey string, privkey string) (exchangeRat
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("X-signature", createBTCAVGSignature(pubkey, privkey))
+	if privkey != "" {
+		req.Header.Add("X-signature", createBTCAVGSignature(pubkey, privkey))
+	} else {
+		req.Header.Add("X-testing", "testing")
+	}
 
 	// Send the requests
 	resp, err := httpClient.Do(req)
