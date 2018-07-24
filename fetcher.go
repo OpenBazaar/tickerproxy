@@ -31,8 +31,18 @@ func Fetch(stream *health.Stream, btcAvgPubkey string, btcAvgPrivkey string, wri
 		allRates = append(allRates, rates)
 	}
 
-	// Format responses
-	responseBytes, err := json.Marshal(mergeRates(allRates))
+	fullRates := mergeRates(allRates)
+
+	// Ensure the final payload passes correctness checks
+	err := validateRates(fullRates)
+	if err != nil {
+		job.EventErr("validate_rates", err)
+		job.Complete(health.Error)
+		return err
+	}
+
+	// Serialize responses
+	responseBytes, err := json.Marshal(fullRates)
 	if err != nil {
 		job.EventErr("marshal", err)
 		job.Complete(health.Error)
@@ -51,4 +61,20 @@ func Fetch(stream *health.Stream, btcAvgPubkey string, btcAvgPrivkey string, wri
 
 	job.Complete(health.Success)
 	return nil
+}
+
+func validateRates(rates exchangeRates) error {
+	for _, symbol := range RequiredSymbols {
+		if _, ok := rates[symbol]; !ok {
+			return errFetchMissingRequiredSymbol(symbol)
+		}
+	}
+
+	return nil
+}
+
+type errFetchMissingRequiredSymbol string
+
+func (e errFetchMissingRequiredSymbol) Error() string {
+	return "Missing required symbol: " + string(e)
 }

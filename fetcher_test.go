@@ -35,13 +35,28 @@ func TestFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Fetch data
-	Fetch(stream, "pubkey", "privkey", func(_ *health.Job, data []byte) error {
+	// Fetch data. First let it fail with missing symbol, then override to let it
+	// work on a second run.
+	err = Fetch(stream, "pubkey", "privkey", func(_ *health.Job, data []byte) error {
 		if string(data) != testExpectedFetchData {
 			t.Fatal("Fetch returned incorrect data\nGot:", string(data), "\nWanted:", testExpectedFetchData)
 		}
 		return nil
 	}, NewFileSystemWriter(outfilePath))
+	if err != errFetchMissingRequiredSymbol("EUR") {
+		t.Fatal(err)
+	}
+
+	RequiredSymbols = []string{}
+	err = Fetch(stream, "pubkey", "privkey", func(_ *health.Job, data []byte) error {
+		if string(data) != testExpectedFetchData {
+			t.Fatal("Fetch returned incorrect data\nGot:", string(data), "\nWanted:", testExpectedFetchData)
+		}
+		return nil
+	}, NewFileSystemWriter(outfilePath))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Make sure we wrote to outfiles
 	savedBytes, err := ioutil.ReadFile(path.Join(outfilePath, "rates"))
