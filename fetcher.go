@@ -17,7 +17,7 @@ func Fetch(stream *health.Stream, btcAvgPubkey string, btcAvgPrivkey string, wri
 	job := stream.NewJob("fetch")
 
 	// Fetch data from each provider
-	allRates := []exchangeRates{{"BTC": {Ask: "1", Bid: "1", Last: "1"}}}
+	allRates := []exchangeRates{{"BTC": {Ask: "1", Bid: "1", Last: "1", Type: exchangeRateTypeCrypto.String()}}}
 	for _, f := range []fetchFn{
 		NewBTCAVGFetcher(btcAvgPubkey, btcAvgPrivkey),
 		FetchCMC,

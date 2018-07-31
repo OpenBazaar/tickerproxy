@@ -111,6 +111,7 @@ func fetchBTCAVGResource(url string, pubkey string, privkey string) (exchangeRat
 func formatBTCAVGFiatOutput(outgoing exchangeRates, incoming exchangeRates) {
 	for k, v := range incoming {
 		if strings.HasPrefix(k, "BTC") {
+			v.Type = exchangeRateTypeFiat.String()
 			outgoing[strings.TrimPrefix(k, "BTC")] = v
 		}
 	}
@@ -146,7 +147,12 @@ func formatBTCAVGCryptoOutput(outgoing exchangeRates, incoming exchangeRates) er
 			return err
 		}
 
-		outgoing[symbol] = exchangeRate{Ask: ask, Bid: bid, Last: last}
+		outgoing[symbol] = exchangeRate{
+			Ask:  ask,
+			Bid:  bid,
+			Last: last,
+			Type: exchangeRateTypeCrypto.String(),
+		}
 	}
 	return nil
 }
