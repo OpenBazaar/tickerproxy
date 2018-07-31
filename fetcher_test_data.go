@@ -72,44 +72,52 @@ var httpMocks = map[string]string{
 }
 
 var testExpectedFetchData = regexp.MustCompile("\\s").ReplaceAllString(`{
-  "$$$": {
-    "ask": 9.9009905,
-    "bid": 9.9009905,
-    "last": 9.9009905
+	"$$$": {
+			"ask": 9.9009905,
+			"bid": 9.9009905,
+			"last": 9.9009905,
+			"type": "crypto"
 	},
-  "ACC": {
-    "ask": 449.4382,
-    "bid": 449.4382,
-    "last": 449.4382
-  },
-  "BCH": {
-    "ask": 2,
-    "bid": 2,
-    "last": 2
-  },
-  "BTC": {
-    "ask": 1,
-    "bid": 1,
-    "last": 1
-  },
-  "MIOTA": {
-    "ask": 980.39215,
-    "bid": 980.39215,
-    "last": 980.39215
+	"ACC": {
+			"ask": 449.4382,
+			"bid": 449.4382,
+			"last": 449.4382,
+			"type": "crypto"
 	},
-  "NOT": {
-    "ask": 0.008264462,
-    "bid": 0.008196721,
-    "last": 0.008130081
-  },
-  "SOIL": {
-    "ask": 810.04456,
-    "bid": 810.04456,
-    "last": 810.04456
-  },
-  "USD": {
-    "ask": 1,
-    "bid": 2,
-    "last": 3
-  }
+	"BCH": {
+			"ask": 2,
+			"bid": 2,
+			"last": 2,
+			"type": "crypto"
+	},
+	"BTC": {
+			"ask": 1,
+			"bid": 1,
+			"last": 1,
+			"type": "crypto"
+	},
+	"MIOTA": {
+			"ask": 980.39215,
+			"bid": 980.39215,
+			"last": 980.39215,
+			"type": "crypto"
+	},
+	"NOT": {
+			"ask": 0.008264462,
+			"bid": 0.008196721,
+			"last": 0.008130081,
+			"type": "crypto"
+	},
+	"SOIL": {
+			"ask": 810.04456,
+			"bid": 810.04456,
+			"last": 810.04456,
+			"type": "crypto"
+	},
+	"USD": {
+			"ask": 1,
+			"bid": 2,
+			"last": 3,
+			"type": "fiat"
+	}
 }`, "")

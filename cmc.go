@@ -84,7 +84,12 @@ func fetchCMCResource(start int, output exchangeRates) (*cmcResponse, error) {
 			return nil, err
 		}
 
-		output[entry.Symbol] = exchangeRate{Ask: price, Bid: price, Last: price}
+		output[entry.Symbol] = exchangeRate{
+			Ask:  price,
+			Bid:  price,
+			Last: price,
+			Type: exchangeRateTypeCrypto.String(),
+		}
 	}
 
 	return payload, nil

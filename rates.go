@@ -11,6 +11,7 @@ type exchangeRate struct {
 	Ask  json.Number `json:"ask"`
 	Bid  json.Number `json:"bid"`
 	Last json.Number `json:"last"`
+	Type string      `json:"type"`
 }
 
 // exchangeRates represents a map of symbols to rate data for that symbol
