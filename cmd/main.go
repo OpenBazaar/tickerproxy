@@ -9,50 +9,22 @@ import (
 	"github.com/gocraft/health/sinks/bugsnag"
 )
 
-type config struct {
-	outPath       string
-	awsS3Region   string
-	awsS3Bucket   string
-	btcAVGPubkey  string
-	btcAVGPrivkey string
-	bugsnagAPIKey string
-}
-
-func newConfig() config {
-	return config{
-		outPath:       getEnvString("TICKER_OUT_PATH", "./"),
-		awsS3Region:   getEnvString("AWS_S3_REGION", ""),
-		awsS3Bucket:   getEnvString("AWS_S3_BUCKET", ""),
-		btcAVGPubkey:  getEnvString("TICKER_BTCAVG_PUBKEY", ""),
-		btcAVGPrivkey: getEnvString("TICKER_BTCAVG_PRIVKEY", ""),
-		bugsnagAPIKey: getEnvString("TICKER_BUGSNAG_APIKEY", ""),
-	}
-}
-
 func main() {
-	conf := newConfig()
+	conf := ticker.NewConfig()
 
-	writers, err := getWriters(conf.outPath, conf.awsS3Region, conf.awsS3Bucket)
+	writers, err := getWriters(conf.OutPath, conf.AWSS3Region, conf.AWSS3Bucket)
 	if err != nil {
 		log.Fatalln("creating writers failed:", err)
 	}
 
 	err = ticker.Fetch(
-		newHealthStream(conf.bugsnagAPIKey),
-		conf.btcAVGPubkey,
-		conf.btcAVGPrivkey,
+		newHealthStream(conf.BugsnagAPIKey),
+		conf.BTCAVGPubkey,
+		conf.BTCAVGPrivkey,
 		writers...)
 	if err != nil {
 		log.Fatalln("ticker failed:", err)
 	}
-}
-
-func getEnvString(key string, defaultVal string) string {
-	val := os.Getenv(key)
-	if val == "" {
-		val = defaultVal
-	}
-	return val
 }
 
 func newHealthStream(bugsnagAPIKey string) *health.Stream {
