@@ -3,7 +3,7 @@ go:
 - "1.10"
 script:
 - go test -v *.go
-- go build -o tickerfetcher ./fetch/*.go
+- make lambda
 deploy:
   provider: releases
   api_key:
