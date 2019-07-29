@@ -12,6 +12,10 @@ const (
 	defaultCMCQueryLimit     = 100
 )
 
+var bannedCryptoSymbols = map[string]struct{}{}{
+	"CRC": struct{}{},
+}
+
 type cmcCoinData struct {
 	ID     int64  `json:"id"`
 	Symbol string `json:"symbol"`
@@ -70,6 +74,11 @@ func fetchCMCResource(start int, output exchangeRates) (*cmcResponse, error) {
 
 	for _, entry := range payload.Data {
 		entry.Symbol = CanonicalizeSymbol(entry.Symbol)
+
+		// Remove symbols that we don't want included in the API
+		if _, ok := bannedCryptoSymbols[entry.Symbol]; ok {
+			continue
+		}
 
 		if !IsCorrectIDForSymbol(entry.Symbol, entry.ID) {
 			continue
