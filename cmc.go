@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	cmcQueryEndpointTemplate = "https://sandbox-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=%d&limit=%d&convert=BTC"
+	cmcQueryEndpointTemplate = "https://%s-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=%d&limit=%d&convert=BTC"
 	cmcQueryFirstID          = 1
 )
 
@@ -31,7 +31,7 @@ type cmcResponse struct {
 	} `json:"data"`
 }
 
-func NewCMCFetcher(apiKey string) fetchFn {
+func NewCMCFetcher(env string, apiKey string) fetchFn {
 	return func() (exchangeRates, error) {
 		var (
 			err    error = nil
@@ -42,7 +42,7 @@ func NewCMCFetcher(apiKey string) fetchFn {
 		// Start at the first ID and keep grabbing pages until we get less than we
 		// requested or there is an error
 		for i := 0; i < 100; i++ {
-			resp, err = fetchCMCResource(apiKey, cmcQueryFirstID+(i*cmcQueryLimit), cmcQueryLimit, output)
+			resp, err = fetchCMCResource(env, apiKey, cmcQueryFirstID+(i*cmcQueryLimit), cmcQueryLimit, output)
 			if err != nil {
 				return nil, err
 			}
@@ -57,8 +57,8 @@ func NewCMCFetcher(apiKey string) fetchFn {
 	}
 }
 
-func fetchCMCResource(apiKey string, start int, limit int, output exchangeRates) (*cmcResponse, error) {
-	req, err := http.NewRequest("GET", buildCMCEndpoint(start, limit), nil)
+func fetchCMCResource(host string, apiKey string, start int, limit int, output exchangeRates) (*cmcResponse, error) {
+	req, err := http.NewRequest("GET", buildCMCEndpoint(host, start, limit), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +111,6 @@ func fetchCMCResource(apiKey string, start int, limit int, output exchangeRates)
 	return payload, nil
 }
 
-func buildCMCEndpoint(start int, limit int) string {
-	return fmt.Sprintf(cmcQueryEndpointTemplate, start, limit)
+func buildCMCEndpoint(env string, start int, limit int) string {
+	return fmt.Sprintf(cmcQueryEndpointTemplate, env, start, limit)
 }

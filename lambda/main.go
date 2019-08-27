@@ -30,7 +30,7 @@ func Fetch() {
 		os.Exit(1)
 	}
 
-	err = ticker.Fetch(stream, conf.BTCAVGPubkey, conf.BTCAVGPrivkey, conf.CMCAPIKey, writer)
+	err = ticker.Fetch(stream, conf, writer)
 	if err != nil {
 		stream.EventErrKv("new_s3_writer", err, kvs)
 		os.Exit(1)

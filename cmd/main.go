@@ -17,12 +17,7 @@ func main() {
 		log.Fatalln("creating writers failed:", err)
 	}
 
-	err = ticker.Fetch(
-		newHealthStream(conf.BugsnagAPIKey),
-		conf.BTCAVGPubkey,
-		conf.BTCAVGPrivkey,
-		conf.CMCAPIKey,
-		writers...)
+	err = ticker.Fetch(newHealthStream(conf.BugsnagAPIKey), conf, writers...)
 	if err != nil {
 		log.Fatalln("ticker failed:", err)
 	}

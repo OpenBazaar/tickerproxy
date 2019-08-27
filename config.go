@@ -9,6 +9,7 @@ type Config struct {
 	BTCAVGPubkey  string
 	BTCAVGPrivkey string
 	CMCAPIKey     string
+	CMCEnv        string
 	BugsnagAPIKey string
 }
 
@@ -20,6 +21,7 @@ func NewConfig() Config {
 		BTCAVGPubkey:  getEnvString("TICKER_BTCAVG_PUBKEY", ""),
 		BTCAVGPrivkey: getEnvString("TICKER_BTCAVG_PRIVKEY", ""),
 		CMCAPIKey:     getEnvString("TICKER_CMC_API_KEY", ""),
+		CMCEnv:        getEnvString("TICKER_CMC_ENV", "sandbox"),
 		BugsnagAPIKey: getEnvString("TICKER_BUGSNAG_API_KEY", ""),
 	}
 }
