@@ -2,6 +2,8 @@ package ticker
 
 import "regexp"
 
+const testCMCQueryLimit = 5
+
 var httpMocks = map[string]string{
 	btcavgFiatEndpoint: `{
 		"BTCUSD": {"ask": "1","bid": "2","last": "3"},
@@ -18,56 +20,51 @@ var httpMocks = map[string]string{
 		"NOTANALTCOINRATE": {}
 	}`,
 
-	buildCMCQueryEndpoint(cmcQueryFirstID, defaultCMCQueryLimit): `{
+	buildCMCEndpoint(cmcQueryFirstID, testCMCQueryLimit): `{
 		"metadata": {"num_cryptocurrencies": 102},
-		"data": {
-			"1": {
+		"data": [
+			{
 				"id": 1,
 				"symbol": "SOIL",
-				"quotes": {"BTC": {"price": 0.0012345}}
+				"quote": {"BTC": {"price": 0.0012345}}
 			},
-			"1831": {
+			{
 				"id": 1831,
 				"symbol": "BCH",
-				"quotes": {"BTC": {"price": 0.5}}
+				"quote": {"BTC": {"price": 0.5}}
 			},
-			"2224": {
+			{
 				"id": 2224,
 				"symbol": "ACC",
-				"quotes": {"BTC": {"price": 0.002224}}
+				"quote": {"BTC": {"price": 0.002224}}
 			},
-			"2225": {
+			{
 				"id": 2225,
 				"symbol": "ACC",
-				"quotes": {"BTC": {"price": 0.002225}}
+				"quote": {"BTC": {"price": 0.002225}}
 			},
-			"2226": {
+			{
 				"id": 2226,
 				"symbol": "ACC",
-				"quotes": {"BTC": {"price": 0.002226}}
+				"quote": {"BTC": {"price": 0.002226}}
 			}
-		}
+		]
 	}`,
 
-	buildCMCQueryEndpoint(cmcQueryFirstID+defaultCMCQueryLimit, defaultCMCQueryLimit): `{
+	buildCMCEndpoint(cmcQueryFirstID+testCMCQueryLimit, testCMCQueryLimit): `{
 		"metadata": {"num_cryptocurrencies": 102},
-		"data": {
-			"101": {
+		"data": [
+			{
 				"id": 101,
 				"symbol": "$$$",
-				"quotes": {"BTC": {"price": 0.101}}
+				"quote": {"BTC": {"price": 0.101}}
 			},
-			"102": {
+			{
 				"id": 102,
 				"symbol": "IOTA",
-				"quotes": {"BTC": {"price": 0.00102}}
-			},
-			"103": {
-				"id": 103,
-				"symbol": "EMPTYPRICE",
-				"quotes": {"BTC": {}}
+				"quote": {"BTC": {"price": 0.00102}}
 			}
-		}
+		]
 	}`,
 }
 

@@ -8,6 +8,7 @@ type Config struct {
 	AWSS3Bucket   string
 	BTCAVGPubkey  string
 	BTCAVGPrivkey string
+	CMCAPIKey     string
 	BugsnagAPIKey string
 }
 
@@ -18,7 +19,8 @@ func NewConfig() Config {
 		AWSS3Bucket:   getEnvString("AWS_S3_BUCKET", ""),
 		BTCAVGPubkey:  getEnvString("TICKER_BTCAVG_PUBKEY", ""),
 		BTCAVGPrivkey: getEnvString("TICKER_BTCAVG_PRIVKEY", ""),
-		BugsnagAPIKey: getEnvString("TICKER_BUGSNAG_APIKEY", ""),
+		CMCAPIKey:     getEnvString("TICKER_CMC_API_KEY", ""),
+		BugsnagAPIKey: getEnvString("TICKER_BUGSNAG_API_KEY", ""),
 	}
 }
 

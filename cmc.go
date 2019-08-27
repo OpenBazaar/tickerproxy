@@ -4,58 +4,69 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 )
 
 const (
-	cmcQueryEndpointTempalte = "https://api.coinmarketcap.com/v2/ticker?convert=BTC&start=%d&limit=%d"
+	cmcQueryEndpointTemplate = "https://sandbox-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=%d&limit=%d&convert=BTC"
 	cmcQueryFirstID          = 1
-	defaultCMCQueryLimit     = 100
 )
 
-var bannedCryptoSymbols = map[string]struct{}{}{
+var cmcQueryLimit = 5000
+
+var bannedCryptoSymbols = map[string]struct{}{
 	"CRC": struct{}{},
 }
 
-type cmcCoinData struct {
-	ID     int64  `json:"id"`
-	Symbol string `json:"symbol"`
-	Name   string `json:"name"`
-	Quotes struct {
-		BTC struct {
-			Price     json.Number `json:"price"`
-			MarketCap float64     `json:"market_cap"`
-		} `json:"BTC"`
-	} `json:"quotes"`
-}
-
 type cmcResponse struct {
-	Data map[json.Number]cmcCoinData `json:"data"`
-
-	Metadata struct {
-		Count int `json:"num_cryptocurrencies"`
-	} `json:"metadata"`
+	Data []struct {
+		ID     int64  `json:"id"`
+		Symbol string `json:"symbol"`
+		Name   string `json:"name"`
+		Quote  struct {
+			BTC struct {
+				Price json.Number `json:"price"`
+			} `json:"BTC"`
+		} `json:"quote"`
+	} `json:"data"`
 }
 
-func FetchCMC() (exchangeRates, error) {
-	output := exchangeRates{}
+func NewCMCFetcher(apiKey string) fetchFn {
+	return func() (exchangeRates, error) {
+		var (
+			err    error = nil
+			resp         = &cmcResponse{}
+			output       = exchangeRates{}
+		)
 
-	resp, err := fetchCMCResource(cmcQueryFirstID, output)
+		// Start at the first ID and keep grabbing pages until we get less than we
+		// requested or there is an error
+		for i := 0; i < 100; i++ {
+			resp, err = fetchCMCResource(apiKey, cmcQueryFirstID+(i*cmcQueryLimit), cmcQueryLimit, output)
+			if err != nil {
+				return nil, err
+			}
+
+			// We aren't getting any more data; stop
+			if len(resp.Data) < cmcQueryLimit {
+				break
+			}
+		}
+
+		return output, nil
+	}
+}
+
+func fetchCMCResource(apiKey string, start int, limit int, output exchangeRates) (*cmcResponse, error) {
+	req, err := http.NewRequest("GET", buildCMCEndpoint(start, limit), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	for i := defaultCMCQueryLimit + cmcQueryFirstID; i < resp.Metadata.Count; i += defaultCMCQueryLimit {
-		_, err = fetchCMCResource(i, output)
-		if err != nil {
-			return nil, err
-		}
-	}
+	req.Header.Add("X-CMC_PRO_API_KEY", apiKey)
+	req.Header.Add("Accept", "application/json")
 
-	return output, nil
-}
-
-func fetchCMCResource(start int, output exchangeRates) (*cmcResponse, error) {
-	resp, err := httpClient.Get(buildCMCQueryEndpoint(start, defaultCMCQueryLimit))
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -84,11 +95,7 @@ func fetchCMCResource(start int, output exchangeRates) (*cmcResponse, error) {
 			continue
 		}
 
-		if entry.Quotes.BTC.Price == "" {
-			continue
-		}
-
-		price, err := invertAndFormatPrice(entry.Quotes.BTC.Price)
+		price, err := invertAndFormatPrice(entry.Quote.BTC.Price)
 		if err != nil {
 			return nil, err
 		}
@@ -104,6 +111,6 @@ func fetchCMCResource(start int, output exchangeRates) (*cmcResponse, error) {
 	return payload, nil
 }
 
-func buildCMCQueryEndpoint(start int, limit int) string {
-	return fmt.Sprintf(cmcQueryEndpointTempalte, start, limit)
+func buildCMCEndpoint(start int, limit int) string {
+	return fmt.Sprintf(cmcQueryEndpointTemplate, start, limit)
 }
