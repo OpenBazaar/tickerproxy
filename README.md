@@ -15,7 +15,7 @@ go get github.com/OpenBazaar/tickerproxy
 ## Run
 
 ```go
-go run "$GOPATH/src/github.com/OpenBazaar/tickerproxy/bin/main.go"
+go run "$GOPATH/src/github.com/OpenBazaar/tickerproxy/cmd/main.go"
 ```
 
 ## Configuration and defaults
