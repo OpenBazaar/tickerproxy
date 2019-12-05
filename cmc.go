@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 )
 
 const (
-	cmcQueryEndpointTemplate = "https://%s-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=%d&limit=%d&convert=BTC"
+	cmcQueryEndpointTemplate = "https://%s-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
 	cmcQueryFirstID          = 1
 )
 
@@ -58,13 +59,22 @@ func NewCMCFetcher(env string, apiKey string) fetchFn {
 }
 
 func fetchCMCResource(host string, apiKey string, start int, limit int, output exchangeRates) (*cmcResponse, error) {
-	req, err := http.NewRequest("GET", buildCMCEndpoint(host, start, limit), nil)
+	req, err := http.NewRequest("GET", buildCMCEndpoint(host), nil)
 	if err != nil {
 		return nil, err
 	}
 
+	startStr := fmt.Sprintf("%v", start)
+	limitStr := fmt.Sprintf("%v", limit)
+
+	q := url.Values{}
+	q.Add("start", startStr)
+	q.Add("limit", limitStr)
+	q.Add("convert", "BTC")
+
 	req.Header.Add("X-CMC_PRO_API_KEY", apiKey)
-	req.Header.Add("Accept", "application/json")
+	req.Header.Set("Accepts", "application/json")
+	req.URL.RawQuery = q.Encode()
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -111,6 +121,6 @@ func fetchCMCResource(host string, apiKey string, start int, limit int, output e
 	return payload, nil
 }
 
-func buildCMCEndpoint(env string, start int, limit int) string {
-	return fmt.Sprintf(cmcQueryEndpointTemplate, env, start, limit)
+func buildCMCEndpoint(env string) string {
+	return fmt.Sprintf(cmcQueryEndpointTemplate, env)
 }

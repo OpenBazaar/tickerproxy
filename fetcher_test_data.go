@@ -20,7 +20,7 @@ var httpMocks = map[string]string{
 		"NOTANALTCOINRATE": {}
 	}`,
 
-	buildCMCEndpoint("sandbox", cmcQueryFirstID, testCMCQueryLimit): `{
+	buildCMCEndpoint("sandbox"): `{
 		"metadata": {"num_cryptocurrencies": 102},
 		"data": [
 			{
@@ -51,7 +51,7 @@ var httpMocks = map[string]string{
 		]
 	}`,
 
-	buildCMCEndpoint("sandbox", cmcQueryFirstID+testCMCQueryLimit, testCMCQueryLimit): `{
+	buildCMCEndpoint("sandbox"): `{
 		"metadata": {"num_cryptocurrencies": 102},
 		"data": [
 			{
