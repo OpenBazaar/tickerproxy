@@ -16,9 +16,10 @@ const (
 var cmcQueryLimit = 5000
 
 var bannedCryptoSymbols = map[string]struct{}{
-	"CRC": struct{}{},
-	"HCA": struct{}{},
-	"EMS": struct{}{},
+	"CRC":  struct{}{},
+	"HCA":  struct{}{},
+	"EMS":  struct{}{},
+	"CDAI": struct{}{},
 	// "USD-N": struct{}{},
 }
 
