@@ -20,6 +20,7 @@ var bannedCryptoSymbols = map[string]struct{}{
 	"HCA":  struct{}{},
 	"EMS":  struct{}{},
 	"CDAI": struct{}{},
+	"LLC":  struct{}{},
 	// "USD-N": struct{}{},
 }
 
