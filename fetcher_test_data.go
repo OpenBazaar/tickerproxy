@@ -75,18 +75,6 @@ var testExpectedFetchData = regexp.MustCompile("\\s").ReplaceAllString(`{
 			"last": 9.9009905,
 			"type": "crypto"
 	},
-	"ACC": {
-			"ask": 449.4382,
-			"bid": 449.4382,
-			"last": 449.4382,
-			"type": "crypto"
-	},
-	"BCH": {
-			"ask": 2,
-			"bid": 2,
-			"last": 2,
-			"type": "crypto"
-	},
 	"BTC": {
 			"ask": 1,
 			"bid": 1,
