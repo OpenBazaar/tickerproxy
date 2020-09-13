@@ -23,6 +23,7 @@ var bannedCryptoSymbols = map[string]struct{}{
 	// "CDAI": struct{}{},
 	// "LLC":  struct{}{},
 	// "USD-N": struct{}{},
+	"USD": {},
 }
 
 type cmcResponse struct {
