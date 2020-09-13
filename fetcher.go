@@ -13,14 +13,14 @@ var httpClient = &http.Client{Timeout: 30 * time.Second}
 type fetchFn func() (exchangeRates, error)
 
 // Fetch gets data from all sources, formats it, and sends it to the Writers.
-func Fetch(stream *health.Stream, btcAvgPubkey string, btcAvgPrivkey string, writers ...Writer) error {
+func Fetch(stream *health.Stream, conf Config, writers ...Writer) error {
 	job := stream.NewJob("fetch")
 
 	// Fetch data from each provider
 	allRates := []exchangeRates{{"BTC": {Ask: "1", Bid: "1", Last: "1", Type: exchangeRateTypeCrypto.String()}}}
 	for _, f := range []fetchFn{
-		NewBTCAVGFetcher(btcAvgPubkey, btcAvgPrivkey),
-		FetchCMC,
+		NewBTCAVGFetcher(conf.BTCAVGPubkey, conf.BTCAVGPrivkey),
+		NewCMCFetcher(conf.CMCEnv, conf.CMCAPIKey),
 	} {
 		rates, err := f()
 		if err != nil {

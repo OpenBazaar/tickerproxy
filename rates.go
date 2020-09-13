@@ -40,6 +40,9 @@ func mergeRates(allRates []exchangeRates) exchangeRates {
 }
 
 func invertAndFormatPrice(price json.Number) (json.Number, error) {
+	if price == "" {
+		return "", nil
+	}
 	priceAsFloat, err := price.Float64()
 	if err != nil {
 		return "", err

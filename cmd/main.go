@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/OpenBazaar/tickerproxy"
+	ticker "github.com/OpenBazaar/tickerproxy"
 	"github.com/gocraft/health"
 	"github.com/gocraft/health/sinks/bugsnag"
 )
@@ -17,11 +17,7 @@ func main() {
 		log.Fatalln("creating writers failed:", err)
 	}
 
-	err = ticker.Fetch(
-		newHealthStream(conf.BugsnagAPIKey),
-		conf.BTCAVGPubkey,
-		conf.BTCAVGPrivkey,
-		writers...)
+	err = ticker.Fetch(newHealthStream(conf.BugsnagAPIKey), conf, writers...)
 	if err != nil {
 		log.Fatalln("ticker failed:", err)
 	}

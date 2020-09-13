@@ -14,6 +14,7 @@ import (
 )
 
 func init() {
+	cmcQueryLimit = testCMCQueryLimit
 	rand.Seed(time.Now().UnixNano())
 }
 
@@ -35,9 +36,16 @@ func TestFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	conf := Config{
+		BTCAVGPubkey:  "pubkey",
+		BTCAVGPrivkey: "privkey",
+		CMCAPIKey:     "cmc-api-key",
+		CMCEnv:        "sandbox",
+	}
+
 	// Fetch data. First let it fail with missing symbol, then override to let it
 	// work on a second run.
-	err = Fetch(stream, "pubkey", "privkey", func(_ *health.Job, data []byte) error {
+	err = Fetch(stream, conf, func(_ *health.Job, data []byte) error {
 		if string(data) != testExpectedFetchData {
 			t.Fatal("Fetch returned incorrect data\nGot:", string(data), "\nWanted:", testExpectedFetchData)
 		}
@@ -48,7 +56,7 @@ func TestFetch(t *testing.T) {
 	}
 
 	RequiredSymbols = []string{}
-	err = Fetch(stream, "pubkey", "privkey", func(_ *health.Job, data []byte) error {
+	err = Fetch(stream, conf, func(_ *health.Job, data []byte) error {
 		if string(data) != testExpectedFetchData {
 			t.Fatal("Fetch returned incorrect data\nGot:", string(data), "\nWanted:", testExpectedFetchData)
 		}

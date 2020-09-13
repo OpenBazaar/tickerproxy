@@ -18,7 +18,7 @@ type Writer func(job *health.Job, data []byte) error
 // NewFileSystemWriter creates a Writer to writes to a local filesystem
 func NewFileSystemWriter(outpath string) Writer {
 	return func(job *health.Job, data []byte) error {
-		filePath := path.Join(outpath, "rates")
+		filePath := path.Join(outpath, "api")
 		writerKvs := health.Kvs{"path": filePath}
 		err := ioutil.WriteFile(filePath, data, 0644)
 		if err != nil {
@@ -51,7 +51,7 @@ func NewS3Writer(region string, bucket string) (Writer, error) {
 
 	return func(job *health.Job, data []byte) error {
 		_, err := s3Client.PutObject(&s3.PutObjectInput{
-			Key:           aws.String("rates"),
+			Key:           aws.String("api"),
 			Bucket:        aws.String(bucket),
 			Body:          bytes.NewReader(data),
 			ContentLength: aws.Int64(int64(len(data))),
